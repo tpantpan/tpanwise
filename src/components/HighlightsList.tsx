@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import HighlightCard from './HighlightCard';
 import { Input } from '@/components/ui/input';
 import { 
@@ -15,11 +15,28 @@ import { Search, Filter } from 'lucide-react';
 import AddHighlightForm from './AddHighlightForm';
 
 const HighlightsList: React.FC = () => {
-  const [highlights, setHighlights] = useState<Highlight[]>(loadHighlights());
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [editingHighlight, setEditingHighlight] = useState<Highlight | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Load highlights on component mount
+  useEffect(() => {
+    const fetchHighlights = async () => {
+      try {
+        const highlightsData = await loadHighlights();
+        setHighlights(highlightsData);
+      } catch (error) {
+        console.error('Error loading highlights:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchHighlights();
+  }, []);
   
   // Get unique categories
   const categories = ['all', ...new Set(highlights.map(h => h.category))].filter(Boolean);
@@ -30,8 +47,13 @@ const HighlightsList: React.FC = () => {
   };
   
   // Handle refresh after delete
-  const handleDeleteRefresh = () => {
-    setHighlights(loadHighlights());
+  const handleDeleteRefresh = async () => {
+    try {
+      const refreshedHighlights = await loadHighlights();
+      setHighlights(refreshedHighlights);
+    } catch (error) {
+      console.error('Error refreshing highlights:', error);
+    }
   };
   
   // Filter and sort highlights
@@ -39,8 +61,8 @@ const HighlightsList: React.FC = () => {
     .filter(highlight => {
       const matchesSearch = 
         highlight.text.toLowerCase().includes(search.toLowerCase()) ||
-        highlight.author.toLowerCase().includes(search.toLowerCase()) ||
-        highlight.source.toLowerCase().includes(search.toLowerCase());
+        highlight.author?.toLowerCase().includes(search.toLowerCase()) ||
+        highlight.source?.toLowerCase().includes(search.toLowerCase());
         
       const matchesCategory = 
         categoryFilter === 'all' || 
@@ -55,7 +77,7 @@ const HighlightsList: React.FC = () => {
         case 'oldest':
           return new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime();
         case 'author':
-          return a.author.localeCompare(b.author);
+          return (a.author || '').localeCompare(b.author || '');
         case 'favorites':
           return (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0);
         default:
@@ -63,10 +85,19 @@ const HighlightsList: React.FC = () => {
       }
     });
     
-  const handleEditComplete = () => {
-    setHighlights(loadHighlights());
-    setEditingHighlight(null);
+  const handleEditComplete = async () => {
+    try {
+      const refreshedHighlights = await loadHighlights();
+      setHighlights(refreshedHighlights);
+      setEditingHighlight(null);
+    } catch (error) {
+      console.error('Error refreshing highlights after edit:', error);
+    }
   };
+
+  if (isLoading) {
+    return <div className="text-center py-12">Loading highlights...</div>;
+  }
 
   return (
     <div className="space-y-6">

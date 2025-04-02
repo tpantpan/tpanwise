@@ -1,15 +1,15 @@
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import Header from '@/components/Header';
 import AddHighlightForm from '@/components/AddHighlightForm';
 import HighlightsList from '@/components/HighlightsList';
 
 const Highlights: React.FC = () => {
-  const [refreshKey, setRefreshKey] = React.useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const handleHighlightAdded = () => {
+  const handleHighlightAdded = useCallback(() => {
     setRefreshKey(prev => prev + 1);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
