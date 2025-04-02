@@ -14,14 +14,18 @@ const RandomHighlight: React.FC = () => {
     loadRandomHighlight();
   }, []);
 
-  const loadRandomHighlight = () => {
+  const loadRandomHighlight = async () => {
     setIsLoading(true);
-    // Simulate a slight delay for animation
-    setTimeout(() => {
-      const randomHighlight = getRandomHighlight();
+    try {
+      // Simulate a slight delay for animation
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const randomHighlight = await getRandomHighlight();
       setHighlight(randomHighlight);
+    } catch (error) {
+      console.error('Error loading random highlight:', error);
+    } finally {
       setIsLoading(false);
-    }, 400);
+    }
   };
 
   if (!highlight) {

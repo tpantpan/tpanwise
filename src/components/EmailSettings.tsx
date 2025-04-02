@@ -14,7 +14,7 @@ import {
   sendHighlightByEmail 
 } from '@/utils/highlights';
 import { EmailFrequency } from '@/types/highlight';
-import { Mail } from 'lucide-react';
+import { Mail, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 
 const EmailSettings: React.FC = () => {
@@ -23,7 +23,8 @@ const EmailSettings: React.FC = () => {
     email: '',
     frequency: 'daily' as EmailFrequency,
     enabled: false,
-    lastSent: undefined as Date | undefined
+    lastSent: undefined as Date | undefined,
+    deliveryTime: '09:00'  // Default to 9 AM
   });
   const [loading, setLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -38,7 +39,8 @@ const EmailSettings: React.FC = () => {
           email: emailSettings.email,
           frequency: emailSettings.frequency,
           enabled: emailSettings.enabled,
-          lastSent: emailSettings.lastSent
+          lastSent: emailSettings.lastSent,
+          deliveryTime: emailSettings.deliveryTime || '09:00'
         });
       } catch (error) {
         console.error('Error loading email settings:', error);
@@ -71,6 +73,13 @@ const EmailSettings: React.FC = () => {
     setSettings(prev => ({ ...prev, enabled: checked }));
   };
 
+  const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSettings(prev => ({
+      ...prev,
+      deliveryTime: e.target.value
+    }));
+  };
+
   const handleSaveSettings = async () => {
     if (settings.enabled && !settings.email) {
       toast({
@@ -87,7 +96,8 @@ const EmailSettings: React.FC = () => {
         email: settings.email,
         frequency: settings.frequency,
         enabled: settings.enabled,
-        lastSent: settings.lastSent
+        lastSent: settings.lastSent,
+        deliveryTime: settings.deliveryTime
       });
       
       if (success) {
@@ -137,12 +147,11 @@ const EmailSettings: React.FC = () => {
         
         // Update the settings with the new last sent date
         const updatedSettings = await loadEmailSettings();
-        setSettings({
-          email: updatedSettings.email,
-          frequency: updatedSettings.frequency,
-          enabled: updatedSettings.enabled,
-          lastSent: updatedSettings.lastSent
-        });
+        setSettings(prev => ({
+          ...prev,
+          lastSent: updatedSettings.lastSent,
+          deliveryTime: updatedSettings.deliveryTime || prev.deliveryTime
+        }));
       } else {
         toast({
           title: "Failed to send test email",
@@ -160,6 +169,16 @@ const EmailSettings: React.FC = () => {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const formatNextScheduledTime = (date: Date | null, time: string) => {
+    if (!date) return null;
+    
+    const [hours, minutes] = time.split(':').map(Number);
+    const scheduledDate = new Date(date);
+    scheduledDate.setHours(hours, minutes, 0, 0);
+    
+    return scheduledDate;
   };
 
   if (loading) {
@@ -212,31 +231,49 @@ const EmailSettings: React.FC = () => {
             disabled={isSending}
           />
         </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="frequency">Delivery Frequency</Label>
-          <Select 
-            value={settings.frequency} 
-            onValueChange={handleFrequencyChange}
-            disabled={isSending}
-          >
-            <SelectTrigger id="frequency">
-              <SelectValue placeholder="Select frequency" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="biweekly">Bi-weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="frequency">Delivery Frequency</Label>
+            <Select 
+              value={settings.frequency} 
+              onValueChange={handleFrequencyChange}
+              disabled={isSending}
+            >
+              <SelectTrigger id="frequency">
+                <SelectValue placeholder="Select frequency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="deliveryTime" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Delivery Time
+            </Label>
+            <Input
+              id="deliveryTime"
+              type="time"
+              value={settings.deliveryTime}
+              onChange={handleTimeChange}
+              disabled={isSending}
+            />
+          </div>
         </div>
         
         {settings.lastSent && (
           <div className="pt-2 border-t text-sm text-muted-foreground">
             <p>Last email sent: {format(settings.lastSent, 'MMMM d, yyyy')}</p>
-            {nextDate && (
-              <p>Next scheduled: {format(nextDate, 'MMMM d, yyyy')}</p>
+            {nextDate && formatNextScheduledTime(nextDate, settings.deliveryTime) && (
+              <p>
+                Next scheduled: {format(formatNextScheduledTime(nextDate, settings.deliveryTime)!, 'MMMM d, yyyy')} at {settings.deliveryTime}
+              </p>
             )}
           </div>
         )}

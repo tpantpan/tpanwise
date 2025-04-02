@@ -293,7 +293,8 @@ export const getDefaultEmailSettings = (): EmailSettings => {
   return {
     email: '',
     frequency: 'daily',
-    enabled: false
+    enabled: false,
+    deliveryTime: '09:00' // Default to 9 AM
   };
 };
 
@@ -315,7 +316,8 @@ export const loadEmailSettings = async (): Promise<EmailSettings> => {
       email: data[0].email,
       frequency: data[0].frequency as EmailFrequency,
       enabled: data[0].enabled,
-      lastSent: data[0].last_sent ? new Date(data[0].last_sent) : undefined
+      lastSent: data[0].last_sent ? new Date(data[0].last_sent) : undefined,
+      deliveryTime: data[0].delivery_time || '09:00'
     };
   } catch (error) {
     console.error('Failed to load email settings:', error);
@@ -363,9 +365,10 @@ export const saveEmailSettings = async (settings: EmailSettings): Promise<boolea
           email: settings.email,
           frequency: settings.frequency,
           enabled: settings.enabled,
-          last_sent: settings.lastSent,
-          next_scheduled: nextScheduled,
-          updated_at: new Date()
+          last_sent: settings.lastSent ? settings.lastSent.toISOString() : null,
+          next_scheduled: nextScheduled ? nextScheduled.toISOString() : null,
+          delivery_time: settings.deliveryTime || '09:00',
+          updated_at: new Date().toISOString()
         })
         .eq('id', existingData[0].id);
       
@@ -381,8 +384,9 @@ export const saveEmailSettings = async (settings: EmailSettings): Promise<boolea
           email: settings.email,
           frequency: settings.frequency,
           enabled: settings.enabled,
-          last_sent: settings.lastSent,
-          next_scheduled: nextScheduled
+          last_sent: settings.lastSent ? settings.lastSent.toISOString() : null,
+          next_scheduled: nextScheduled ? nextScheduled.toISOString() : null,
+          delivery_time: settings.deliveryTime || '09:00'
         });
       
       if (insertError) {
@@ -417,8 +421,8 @@ export const sendHighlightByEmail = async (email?: string): Promise<boolean> => 
       return false;
     }
     
-    // Make sure the URL construction is relative to the Supabase project
-    const functionUrl = `${supabase.functions.url}/send-highlight`;
+    // Get the function URL correctly
+    const functionUrl = supabase.functions.invoke.url + '/send-highlight';
     
     console.log('Sending email to:', recipientEmail);
     console.log('Sending highlight:', highlight);
@@ -428,7 +432,7 @@ export const sendHighlightByEmail = async (email?: string): Promise<boolean> => 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabase.auth.getSession()}`
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
       },
       body: JSON.stringify({
         email: recipientEmail,
@@ -481,6 +485,14 @@ export const getNextScheduledDate = (settings: EmailSettings): Date | null => {
     case 'monthly':
       nextDate.setMonth(nextDate.getMonth() + 1);
       break;
+  }
+  
+  // If a delivery time is specified, set the hours and minutes
+  if (settings.deliveryTime) {
+    const [hours, minutes] = settings.deliveryTime.split(':').map(Number);
+    if (!isNaN(hours) && !isNaN(minutes)) {
+      nextDate.setHours(hours, minutes, 0, 0);
+    }
   }
   
   return nextDate;

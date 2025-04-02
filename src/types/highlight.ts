@@ -16,4 +16,5 @@ export interface EmailSettings {
   frequency: EmailFrequency;
   enabled: boolean;
   lastSent?: Date;
+  deliveryTime?: string; // Format: "HH:MM" in 24-hour format
 }

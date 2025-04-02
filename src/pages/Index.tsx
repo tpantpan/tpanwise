@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
@@ -9,11 +9,32 @@ import AddHighlightForm from '@/components/AddHighlightForm';
 import { loadHighlights } from '@/utils/highlights';
 
 const Index: React.FC = () => {
-  const [highlightsCount, setHighlightsCount] = React.useState(0);
+  const [highlightsCount, setHighlightsCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  React.useEffect(() => {
-    setHighlightsCount(loadHighlights().length);
+  useEffect(() => {
+    const fetchHighlights = async () => {
+      try {
+        const highlights = await loadHighlights();
+        setHighlightsCount(highlights.length);
+      } catch (error) {
+        console.error('Error loading highlights count:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchHighlights();
   }, []);
+
+  const handleHighlightAdded = async () => {
+    try {
+      const highlights = await loadHighlights();
+      setHighlightsCount(highlights.length);
+    } catch (error) {
+      console.error('Error updating highlights count:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -32,7 +53,7 @@ const Index: React.FC = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-semibold">Today's Highlight</h2>
               <AddHighlightForm 
-                onSuccess={() => setHighlightsCount(loadHighlights().length)} 
+                onSuccess={handleHighlightAdded} 
               />
             </div>
             <RandomHighlight />
@@ -42,9 +63,9 @@ const Index: React.FC = () => {
             <div className="p-6 border rounded-lg bg-accent/20">
               <h3 className="text-xl font-medium mb-2">Your Collection</h3>
               <p className="text-muted-foreground mb-4">
-                {highlightsCount === 0 ? (
-                  "You don't have any highlights yet. Start building your collection!"
-                ) : (
+                {isLoading ? 'Loading...' : (
+                  highlightsCount === 0 ? 
+                  "You don't have any highlights yet. Start building your collection!" :
                   `You have ${highlightsCount} highlight${highlightsCount === 1 ? '' : 's'} in your collection.`
                 )}
               </p>

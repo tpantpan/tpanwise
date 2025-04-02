@@ -1,94 +1,95 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+interface HighlightData {
+  text: string;
+  author?: string;
+  source?: string;
+  category?: string;
+}
+
+interface EmailRequest {
+  email: string;
+  highlight: HighlightData;
+  deliveryTime?: string;
+}
+
+const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-    
-    if (!RESEND_API_KEY) {
-      console.error("RESEND_API_KEY is not configured");
-      return new Response(
-        JSON.stringify({ error: "Email service not configured" }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
+    console.log('Receiving email request');
+    const { email, highlight, deliveryTime }: EmailRequest = await req.json();
+
+    if (!email) {
+      throw new Error("Email address is required");
     }
 
-    const resend = new Resend(RESEND_API_KEY);
-    
-    const { email, highlight } = await req.json();
-    
-    if (!email || !highlight) {
-      return new Response(
-        JSON.stringify({ error: "Email and highlight are required" }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
+    if (!highlight || !highlight.text) {
+      throw new Error("Highlight content is required");
     }
 
-    console.log(`Sending highlight to ${email}:`, highlight);
-    
-    const { data, error } = await resend.emails.send({
-      from: "Sparkler <onboarding@resend.dev>",
+    console.log(`Sending highlight to ${email}`);
+    console.log(`Highlight: ${JSON.stringify(highlight)}`);
+    if (deliveryTime) {
+      console.log(`Scheduled for daily delivery at: ${deliveryTime}`);
+    }
+
+    const source = highlight.source ? `<em>${highlight.source}</em>` : '';
+    const author = highlight.author ? `<strong>${highlight.author}</strong>` : '';
+    const attribution = (author || source) ? `<p style="text-align: right; font-size: 14px; margin-top: 10px;">${author} ${source}</p>` : '';
+    const category = highlight.category ? `<span style="color: #6c7693; font-size: 12px; text-transform: uppercase;">${highlight.category}</span>` : '';
+
+    const emailResponse = await resend.emails.send({
+      from: "Sparkler Highlights <onboarding@resend.dev>",
       to: [email],
-      subject: "Your Daily Highlight from Sparkler",
+      subject: "Your Highlight of the Day",
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #4F46E5;">Your Sparkler Highlight</h1>
-          <div style="border-left: 4px solid #4F46E5; padding: 10px 20px; background-color: #F3F4F6; margin: 20px 0;">
-            <p style="font-size: 18px; line-height: 1.6;">"${highlight.text}"</p>
-            ${highlight.author ? `<p style="font-style: italic; text-align: right;">— ${highlight.author}</p>` : ''}
-            ${highlight.source ? `<p style="color: #6B7280; font-size: 14px;">Source: ${highlight.source}</p>` : ''}
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+          ${category}
+          <div style="margin: 20px 0; padding: 20px; border-left: 4px solid #5b6cf9; background-color: #f9f9fb;">
+            <p style="font-size: 18px; line-height: 1.6; color: #374151;">
+              "${highlight.text}"
+            </p>
+            ${attribution}
           </div>
-          <p style="margin-top: 30px; color: #6B7280; font-size: 14px;">
-            This email was sent according to your preferences in Sparkler, your personal highlights library.
+          <p style="font-size: 14px; color: #6c7693;">
+            Sent from <a href="https://lovable.app" style="color: #5b6cf9; text-decoration: none;">Sparkler</a>, your personal highlights library.
           </p>
         </div>
       `,
     });
 
-    if (error) {
-      console.error("Error sending email:", error);
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
-    }
+    console.log("Email sent successfully:", emailResponse);
 
-    console.log("Email sent successfully:", data);
-    
-    return new Response(
-      JSON.stringify({ success: true, data }),
-      { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
-      }
-    );
-  } catch (error) {
+    return new Response(JSON.stringify({ success: true, data: emailResponse }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders,
+      },
+    });
+  } catch (error: any) {
     console.error("Error in send-highlight function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
+      JSON.stringify({ success: false, error: error.message }),
+      {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
   }
-});
+};
+
+serve(handler);
