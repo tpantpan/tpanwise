@@ -1,1 +1,5 @@
+
 project_id = "tmfrvfjfxgyztcjfqrlk"
+
+[functions.send-highlight]
+verify_jwt = false

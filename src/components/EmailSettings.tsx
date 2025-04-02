@@ -19,14 +19,36 @@ import { format } from 'date-fns';
 
 const EmailSettings: React.FC = () => {
   const { toast } = useToast();
-  const [settings, setSettings] = useState(loadEmailSettings());
+  const [settings, setSettings] = useState({
+    email: '',
+    frequency: 'daily' as EmailFrequency,
+    enabled: false,
+    lastSent: undefined as Date | undefined
+  });
+  const [loading, setLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   
   const nextDate = getNextScheduledDate(settings);
 
   useEffect(() => {
-    setSettings(loadEmailSettings());
-  }, []);
+    const fetchSettings = async () => {
+      try {
+        const emailSettings = await loadEmailSettings();
+        setSettings(emailSettings);
+      } catch (error) {
+        console.error('Error loading email settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load email settings",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSettings();
+  }, [toast]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -44,7 +66,7 @@ const EmailSettings: React.FC = () => {
     setSettings(prev => ({ ...prev, enabled: checked }));
   };
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     if (settings.enabled && !settings.email) {
       toast({
         title: "Email required",
@@ -54,11 +76,32 @@ const EmailSettings: React.FC = () => {
       return;
     }
     
-    saveEmailSettings(settings);
-    toast({
-      title: "Settings saved",
-      description: "Your email settings have been updated."
-    });
+    setLoading(true);
+    try {
+      const success = await saveEmailSettings(settings);
+      
+      if (success) {
+        toast({
+          title: "Settings saved",
+          description: "Your email settings have been updated."
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to save email settings",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error saving email settings:', error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSendTestEmail = async () => {
@@ -81,6 +124,10 @@ const EmailSettings: React.FC = () => {
           title: "Test email sent",
           description: "A random highlight has been sent to your email address."
         });
+        
+        // Update the settings with the new last sent date
+        const updatedSettings = await loadEmailSettings();
+        setSettings(updatedSettings);
       } else {
         toast({
           title: "Failed to send test email",
@@ -89,6 +136,7 @@ const EmailSettings: React.FC = () => {
         });
       }
     } catch (error) {
+      console.error('Error sending test email:', error);
       toast({
         title: "Error",
         description: "An error occurred while sending the test email.",
@@ -98,6 +146,18 @@ const EmailSettings: React.FC = () => {
       setIsSending(false);
     }
   };
+
+  if (loading) {
+    return (
+      <Card className="w-full">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-center h-40">
+            <p className="text-muted-foreground">Loading settings...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full">
@@ -117,6 +177,7 @@ const EmailSettings: React.FC = () => {
               id="enabled"
               checked={settings.enabled}
               onCheckedChange={handleEnabledChange}
+              disabled={isSending}
             />
           </div>
           <p className="text-sm text-muted-foreground">
@@ -133,6 +194,7 @@ const EmailSettings: React.FC = () => {
             placeholder="your@email.com"
             value={settings.email}
             onChange={handleChange}
+            disabled={isSending}
           />
         </div>
         
@@ -141,6 +203,7 @@ const EmailSettings: React.FC = () => {
           <Select 
             value={settings.frequency} 
             onValueChange={handleFrequencyChange}
+            disabled={isSending}
           >
             <SelectTrigger id="frequency">
               <SelectValue placeholder="Select frequency" />
@@ -171,9 +234,14 @@ const EmailSettings: React.FC = () => {
           disabled={!settings.email || isSending}
         >
           <Mail className="h-4 w-4" />
-          Send Test Email
+          {isSending ? "Sending..." : "Send Test Email"}
         </Button>
-        <Button onClick={handleSaveSettings}>Save Settings</Button>
+        <Button 
+          onClick={handleSaveSettings}
+          disabled={isSending}
+        >
+          Save Settings
+        </Button>
       </CardFooter>
     </Card>
   );
