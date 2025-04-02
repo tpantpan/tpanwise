@@ -34,7 +34,12 @@ const EmailSettings: React.FC = () => {
     const fetchSettings = async () => {
       try {
         const emailSettings = await loadEmailSettings();
-        setSettings(emailSettings);
+        setSettings({
+          email: emailSettings.email,
+          frequency: emailSettings.frequency,
+          enabled: emailSettings.enabled,
+          lastSent: emailSettings.lastSent
+        });
       } catch (error) {
         console.error('Error loading email settings:', error);
         toast({
@@ -78,7 +83,12 @@ const EmailSettings: React.FC = () => {
     
     setLoading(true);
     try {
-      const success = await saveEmailSettings(settings);
+      const success = await saveEmailSettings({
+        email: settings.email,
+        frequency: settings.frequency,
+        enabled: settings.enabled,
+        lastSent: settings.lastSent
+      });
       
       if (success) {
         toast({
@@ -117,7 +127,7 @@ const EmailSettings: React.FC = () => {
     setIsSending(true);
     
     try {
-      const result = await sendHighlightByEmail();
+      const result = await sendHighlightByEmail(settings.email);
       
       if (result) {
         toast({
@@ -127,7 +137,12 @@ const EmailSettings: React.FC = () => {
         
         // Update the settings with the new last sent date
         const updatedSettings = await loadEmailSettings();
-        setSettings(updatedSettings);
+        setSettings({
+          email: updatedSettings.email,
+          frequency: updatedSettings.frequency,
+          enabled: updatedSettings.enabled,
+          lastSent: updatedSettings.lastSent
+        });
       } else {
         toast({
           title: "Failed to send test email",

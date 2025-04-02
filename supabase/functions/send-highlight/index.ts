@@ -41,7 +41,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Sending highlight to ${email}`);
+    console.log(`Sending highlight to ${email}:`, highlight);
     
     const { data, error } = await resend.emails.send({
       from: "Sparkler <onboarding@resend.dev>",

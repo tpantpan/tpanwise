@@ -53,12 +53,14 @@ export const loadHighlights = async (): Promise<Highlight[]> => {
     }
     
     if (data && data.length > 0) {
-      return data.map((highlight: any) => ({
-        ...highlight,
+      return data.map((highlight) => ({
         id: highlight.id,
+        text: highlight.text,
+        source: highlight.source,
+        author: highlight.author,
+        category: highlight.category,
         dateAdded: new Date(highlight.date_added),
-        // Ensure all required properties exist
-        favorite: highlight.favorite ?? false,
+        favorite: highlight.favorite ?? false
       }));
     }
     
@@ -134,11 +136,19 @@ export const addHighlight = async (highlight: Omit<Highlight, 'id' | 'dateAdded'
       return localHighlight;
     }
     
-    return {
-      ...data,
-      dateAdded: new Date(data.date_added),
-      id: data.id
-    };
+    if (data) {
+      return {
+        id: data.id,
+        text: data.text,
+        source: data.source,
+        author: data.author,
+        category: data.category,
+        dateAdded: new Date(data.date_added),
+        favorite: data.favorite
+      };
+    }
+    
+    return null;
   } catch (error) {
     console.error('Failed to add highlight:', error);
     return null;
@@ -212,7 +222,7 @@ export const toggleFavorite = async (id: string): Promise<boolean> => {
       .eq('id', id)
       .single();
     
-    if (fetchError) {
+    if (fetchError || !highlight) {
       console.error('Error fetching highlight from Supabase:', fetchError);
       // Fall back to local storage
       const highlights = loadHighlightsFromLocalStorage();
@@ -264,8 +274,11 @@ export const getRandomHighlight = async (): Promise<Highlight | null> => {
     const highlight = data[randomIndex];
     
     return {
-      ...highlight,
       id: highlight.id,
+      text: highlight.text,
+      source: highlight.source,
+      author: highlight.author,
+      category: highlight.category,
       dateAdded: new Date(highlight.date_added),
       favorite: highlight.favorite
     };
@@ -386,25 +399,39 @@ export const saveEmailSettings = async (settings: EmailSettings): Promise<boolea
 };
 
 // Function to send a highlight by email
-export const sendHighlightByEmail = async (): Promise<boolean> => {
+export const sendHighlightByEmail = async (email?: string): Promise<boolean> => {
   try {
     const settings = await loadEmailSettings();
-    if (!settings.enabled || !settings.email) {
+    
+    // Use provided email or fall back to saved settings
+    const recipientEmail = email || settings.email;
+    
+    if (!recipientEmail) {
+      console.error('No email address provided');
       return false;
     }
     
     const highlight = await getRandomHighlight();
     if (!highlight) {
+      console.error('No highlights available to send');
       return false;
     }
     
-    const response = await fetch(`${supabase.functions.url}/send-highlight`, {
+    // Make sure the URL construction is relative to the Supabase project
+    const functionUrl = `${supabase.functions.url}/send-highlight`;
+    
+    console.log('Sending email to:', recipientEmail);
+    console.log('Sending highlight:', highlight);
+    console.log('Calling function URL:', functionUrl);
+    
+    const response = await fetch(functionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabase.auth.getSession()}`
       },
       body: JSON.stringify({
-        email: settings.email,
+        email: recipientEmail,
         highlight: {
           text: highlight.text,
           author: highlight.author,
