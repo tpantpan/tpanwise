@@ -8,7 +8,7 @@ import { RefreshCw } from 'lucide-react';
 
 const RandomHighlight: React.FC = () => {
   const [highlight, setHighlight] = useState<Highlight | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadRandomHighlight();
@@ -27,6 +27,16 @@ const RandomHighlight: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  if (isLoading) {
+    return (
+      <Card className="w-full h-[300px] flex items-center justify-center">
+        <CardContent>
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!highlight) {
     return (

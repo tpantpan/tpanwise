@@ -1,4 +1,3 @@
-
 import { Highlight, EmailSettings, EmailFrequency } from '@/types/highlight';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -312,12 +311,14 @@ export const loadEmailSettings = async (): Promise<EmailSettings> => {
       return loadEmailSettingsFromLocalStorage();
     }
     
+    const settings = data[0];
+    
     return {
-      email: data[0].email,
-      frequency: data[0].frequency as EmailFrequency,
-      enabled: data[0].enabled,
-      lastSent: data[0].last_sent ? new Date(data[0].last_sent) : undefined,
-      deliveryTime: data[0].delivery_time || '09:00'
+      email: settings.email,
+      frequency: settings.frequency as EmailFrequency,
+      enabled: settings.enabled,
+      lastSent: settings.last_sent ? new Date(settings.last_sent) : undefined,
+      deliveryTime: settings.delivery_time || '09:00'
     };
   } catch (error) {
     console.error('Failed to load email settings:', error);
@@ -421,35 +422,29 @@ export const sendHighlightByEmail = async (email?: string): Promise<boolean> => 
       return false;
     }
     
-    // Get the function URL correctly
-    const functionUrl = supabase.functions.invoke.url + '/send-highlight';
-    
     console.log('Sending email to:', recipientEmail);
     console.log('Sending highlight:', highlight);
-    console.log('Calling function URL:', functionUrl);
     
-    const response = await fetch(functionUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-      },
-      body: JSON.stringify({
+    // Call the Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('send-highlight', {
+      body: {
         email: recipientEmail,
         highlight: {
           text: highlight.text,
           author: highlight.author,
           source: highlight.source,
           category: highlight.category
-        }
-      })
+        },
+        deliveryTime: settings.deliveryTime
+      }
     });
     
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error sending email:', errorData);
+    if (error) {
+      console.error('Error sending email:', error);
       return false;
     }
+    
+    console.log('Email function response:', data);
     
     // Update last sent date
     settings.lastSent = new Date();

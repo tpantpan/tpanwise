@@ -12,6 +12,7 @@ export type Database = {
       email_settings: {
         Row: {
           created_at: string
+          delivery_time: string | null
           email: string
           enabled: boolean
           frequency: string
@@ -23,6 +24,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          delivery_time?: string | null
           email: string
           enabled?: boolean
           frequency: string
@@ -34,6 +36,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          delivery_time?: string | null
           email?: string
           enabled?: boolean
           frequency?: string
