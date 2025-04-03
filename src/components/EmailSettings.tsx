@@ -14,7 +14,7 @@ import {
   sendHighlightByEmail 
 } from '@/utils/highlights';
 import { EmailFrequency } from '@/types/highlight';
-import { Mail, Clock } from 'lucide-react';
+import { Mail, Clock, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 
 const EmailSettings: React.FC = () => {
@@ -170,6 +170,53 @@ const EmailSettings: React.FC = () => {
       setIsSending(false);
     }
   };
+  
+  const handleSendMissedEmail = async () => {
+    if (!settings.email) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address to send today's highlight.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsSending(true);
+    
+    try {
+      const result = await sendHighlightByEmail(settings.email);
+      
+      if (result) {
+        toast({
+          title: "Today's highlight sent",
+          description: "Your daily highlight has been delivered to your email."
+        });
+        
+        // Update the settings with the new last sent date
+        const updatedSettings = await loadEmailSettings();
+        setSettings(prev => ({
+          ...prev,
+          lastSent: updatedSettings.lastSent,
+          deliveryTime: updatedSettings.deliveryTime || prev.deliveryTime
+        }));
+      } else {
+        toast({
+          title: "Failed to send email",
+          description: "Please check your settings and try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error sending daily email:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while sending today's highlight.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   const formatNextScheduledTime = (date: Date | null, time: string) => {
     if (!date) return null;
@@ -179,6 +226,21 @@ const EmailSettings: React.FC = () => {
     scheduledDate.setHours(hours, minutes, 0, 0);
     
     return scheduledDate;
+  };
+  
+  const isDailyEmailMissed = () => {
+    if (!settings.enabled || !settings.lastSent) return false;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastSentDay = new Date(
+      settings.lastSent.getFullYear(), 
+      settings.lastSent.getMonth(), 
+      settings.lastSent.getDate()
+    );
+    
+    // Check if last sent is before today and frequency is daily
+    return settings.frequency === 'daily' && lastSentDay < today;
   };
 
   if (loading) {
@@ -202,6 +264,28 @@ const EmailSettings: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {isDailyEmailMissed() && (
+          <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-md flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-yellow-700">Missed daily email</p>
+              <p className="text-sm text-yellow-600">
+                It looks like you didn't receive your daily highlight email. 
+                You can send it now manually.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="mt-2 bg-white border-yellow-200 hover:bg-yellow-50 text-yellow-700"
+                onClick={handleSendMissedEmail}
+                disabled={isSending}
+              >
+                {isSending ? "Sending..." : "Send today's highlight now"}
+              </Button>
+            </div>
+          </div>
+        )}
+      
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="enabled" className="text-base">

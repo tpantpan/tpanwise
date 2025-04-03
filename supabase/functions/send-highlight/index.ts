@@ -67,6 +67,7 @@ const handler = async (req: Request): Promise<Response> => {
           <p style="font-size: 14px; color: #6c7693;">
             Sent from <a href="https://lovable.app" style="color: #5b6cf9; text-decoration: none;">Sparkler</a>, your personal highlights library.
           </p>
+          ${deliveryTime ? `<p style="font-size: 12px; color: #6c7693;">Scheduled delivery time: ${deliveryTime}</p>` : ''}
         </div>
       `,
     });
