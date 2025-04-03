@@ -1,5 +1,6 @@
 
 import { Highlight, EmailFrequency, EmailSettings } from '@/types/highlight';
+import { supabase } from '@/integrations/supabase/client';
 
 // Get next scheduled date based on frequency
 export const getNextScheduledDate = (settings: EmailSettings): Date | null => {
@@ -205,10 +206,9 @@ export const saveEmailSettings = async (settings: EmailSettings): Promise<boolea
   }
 };
 
-// Send a highlight by email
+// Send a highlight by email using Supabase edge function
 export const sendHighlightByEmail = async (email: string): Promise<boolean> => {
   try {
-    // In a real app, this would call an API to send the email
     console.log(`Sending highlight to: ${email}`);
     
     // Get a random highlight to send
@@ -218,12 +218,36 @@ export const sendHighlightByEmail = async (email: string): Promise<boolean> => {
       return false;
     }
     
-    // Update last sent time in settings
+    console.log('Selected highlight for email:', highlight);
+    
+    // Get the current delivery time setting
     const settings = await loadEmailSettings();
+    
+    // Call the Supabase edge function to send the email
+    const { data, error } = await supabase.functions.invoke('send-highlight', {
+      body: {
+        email: email,
+        highlight: {
+          text: highlight.text,
+          author: highlight.author,
+          source: highlight.source,
+          category: highlight.category
+        },
+        deliveryTime: settings.deliveryTime
+      }
+    });
+    
+    if (error) {
+      console.error('Error invoking send-highlight function:', error);
+      return false;
+    }
+    
+    console.log('Email function response:', data);
+    
+    // Update last sent time in settings
     settings.lastSent = new Date();
     await saveEmailSettings(settings);
     
-    console.log('Email sent successfully:', highlight);
     return true;
   } catch (error) {
     console.error('Error sending highlight by email:', error);
