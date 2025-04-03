@@ -6,6 +6,7 @@ import { PlusCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import RandomHighlight from '@/components/RandomHighlight';
 import AddHighlightForm from '@/components/AddHighlightForm';
+import PDFUploaderDialog from '@/components/PDFUploaderDialog';
 import { loadHighlights } from '@/utils/highlights';
 
 const Index: React.FC = () => {
@@ -52,9 +53,10 @@ const Index: React.FC = () => {
           <section className="max-w-3xl mx-auto mb-12">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-semibold">Today's Highlight</h2>
-              <AddHighlightForm 
-                onSuccess={handleHighlightAdded} 
-              />
+              <div className="flex gap-2">
+                <PDFUploaderDialog onSuccess={handleHighlightAdded} />
+                <AddHighlightForm onSuccess={handleHighlightAdded} />
+              </div>
             </div>
             <RandomHighlight />
           </section>
