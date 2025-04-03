@@ -16,13 +16,18 @@ interface PDFUploaderProps {
   onSuccess?: () => void;
 }
 
+interface HighlightCandidate {
+  text: string;
+  selected: boolean;
+}
+
 const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
   const [file, setFile] = useState<File | null>(null);
   const [author, setAuthor] = useState('');
   const [source, setSource] = useState('');
   const [category, setCategory] = useState('Book');
   const [isUploading, setIsUploading] = useState(false);
-  const [extractedText, setExtractedText] = useState<string[]>([]);
+  const [extractedText, setExtractedText] = useState<HighlightCandidate[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -62,7 +67,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
       const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
       const pdf = await loadingTask.promise;
       
-      const highlights: string[] = [];
+      let fullText = '';
       
       // Process each page
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -72,21 +77,25 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
         
         // Join all text from the page
         const text = textItems.join(' ');
-        
-        // Split text into paragraphs or sections (simple approach)
-        const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 15);
-        
-        // Add to highlights
-        highlights.push(...paragraphs);
+        fullText += text + '\n\n';
       }
       
-      if (highlights.length === 0) {
+      if (fullText.trim().length === 0) {
         setError('No text found in the PDF or the PDF might be scanned images');
         setIsUploading(false);
         return;
       }
       
-      setExtractedText(highlights);
+      // Extract individual highlights using various patterns
+      const highlights = extractHighlights(fullText);
+      
+      if (highlights.length === 0) {
+        setError('Could not identify individual highlights in the PDF');
+        setIsUploading(false);
+        return;
+      }
+      
+      setExtractedText(highlights.map(text => ({ text, selected: true })));
       setIsUploading(false);
       
     } catch (err) {
@@ -96,31 +105,103 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
     }
   };
 
+  // Function to extract individual highlights from text
+  const extractHighlights = (text: string): string[] => {
+    const highlights: string[] = [];
+    
+    // Try different patterns to split the text into highlights
+    
+    // Pattern 1: Split by highlight indicators like "Highlight (Yellow) | Location X"
+    const highlightPattern = /Highlight\s+\((?:Yellow|Blue|Pink|Orange|Green)\)\s*\|\s*Location\s+\d+/gi;
+    if (text.match(highlightPattern)) {
+      const segments = text.split(highlightPattern).filter(Boolean);
+      // The first segment might be introductory text, not a highlight
+      for (let i = 0; i < segments.length; i++) {
+        const segment = segments[i].trim();
+        if (segment.length > 15) { // Skip very short segments
+          highlights.push(segment);
+        }
+      }
+      return highlights;
+    }
+    
+    // Pattern 2: Split by bullet points and numbered lists
+    const bulletPattern = /(?:\n|\r\n?)\s*(?:•|\*|-|\d+\.)\s+/;
+    if (text.match(bulletPattern)) {
+      const segments = text.split(bulletPattern).filter(Boolean);
+      for (const segment of segments) {
+        const trimmed = segment.trim();
+        if (trimmed.length > 15) { // Skip very short segments
+          highlights.push(trimmed);
+        }
+      }
+      
+      if (highlights.length > 0) {
+        return highlights;
+      }
+    }
+    
+    // Pattern 3: Split by paragraph breaks (empty lines)
+    const paragraphs = text.split(/\n\s*\n/).filter(Boolean);
+    for (const paragraph of paragraphs) {
+      const trimmed = paragraph.trim();
+      if (trimmed.length > 15) { // Skip very short paragraphs
+        highlights.push(trimmed);
+      }
+    }
+    
+    // If we still don't have meaningful highlights, try to break by sentences
+    if (highlights.length <= 1 && text.length > 200) {
+      const sentencePattern = /(?<=[.!?])\s+(?=[A-Z])/g;
+      const sentences = text.split(sentencePattern).filter(Boolean);
+      
+      // Group sentences into reasonable chunks (3-4 sentences per highlight)
+      const sentencesPerChunk = 3;
+      for (let i = 0; i < sentences.length; i += sentencesPerChunk) {
+        const chunk = sentences.slice(i, i + sentencesPerChunk).join(' ');
+        if (chunk.trim().length > 15) {
+          highlights.push(chunk.trim());
+        }
+      }
+    }
+    
+    return highlights;
+  };
+
+  // Toggle selection of a highlight
+  const toggleHighlightSelection = (index: number) => {
+    setExtractedText(prev => 
+      prev.map((item, i) => 
+        i === index ? { ...item, selected: !item.selected } : item
+      )
+    );
+  };
+
   // Save highlights to storage
   const saveHighlights = async () => {
-    if (extractedText.length === 0) {
-      setError('No highlights to save');
+    const selectedHighlights = extractedText.filter(item => item.selected);
+    
+    if (selectedHighlights.length === 0) {
+      setError('No highlights selected to save');
       return;
     }
 
     setIsUploading(true);
     try {
       // Add each extracted text as a highlight
-      for (const text of extractedText) {
-        if (text.trim().length > 10) { // Ensure it's not too short
-          await addHighlight({
-            text,
-            author,
-            source,
-            category,
-            favorite: false
-          });
-        }
+      for (const { text } of selectedHighlights) {
+        await addHighlight({
+          text,
+          author,
+          source,
+          category,
+          favorite: false
+        });
       }
 
       toast({
         title: 'Success!',
-        description: `${extractedText.length} highlights added from your PDF`,
+        description: `${selectedHighlights.length} highlights added from your PDF`,
       });
 
       // Reset state
@@ -207,14 +288,25 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
           <div className="space-y-2">
             <h3 className="text-lg font-medium">Found {extractedText.length} highlights</h3>
             <p className="text-sm text-muted-foreground">
-              We extracted the following highlights from your PDF. Click "Save All" to add them to your collection.
+              We identified the following highlights from your PDF. Uncheck any items you don't want to save.
             </p>
           </div>
           
           <div className="max-h-60 overflow-y-auto space-y-2 border rounded-md p-4">
-            {extractedText.map((text, index) => (
-              <div key={index} className="p-3 bg-muted/30 rounded-md text-sm">
-                {text.length > 150 ? `${text.substring(0, 150)}...` : text}
+            {extractedText.map((item, index) => (
+              <div 
+                key={index} 
+                className={`p-3 rounded-md text-sm flex gap-2 ${item.selected ? 'bg-primary/10' : 'bg-muted/30'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={item.selected}
+                  onChange={() => toggleHighlightSelection(index)}
+                  className="mt-1 shrink-0"
+                />
+                <span>
+                  {item.text.length > 150 ? `${item.text.substring(0, 150)}...` : item.text}
+                </span>
               </div>
             ))}
           </div>
@@ -226,7 +318,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
               className="flex items-center gap-2"
             >
               <Upload className="h-4 w-4" />
-              {isUploading ? 'Saving...' : 'Save All Highlights'}
+              {isUploading ? 'Saving...' : `Save ${extractedText.filter(item => item.selected).length} Highlights`}
             </Button>
             
             <Button
