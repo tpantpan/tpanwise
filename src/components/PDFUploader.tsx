@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { addHighlight } from '@/utils/highlights';
-import { extractTextFromPDF, extractHighlights, HighlightCandidate } from '@/utils/pdfExtractor';
+import { extractTextFromPDF, extractHighlights, detectPDFFormat, HighlightCandidate } from '@/utils/pdfExtractor';
 import UploadForm from './PDF/UploadForm';
 import HighlightsReview from './PDF/HighlightsReview';
 
@@ -53,11 +53,10 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
         return;
       }
       
-      // Detect if this is a Kindle notes export
-      if (fullText.match(/Highlight\s+\(\w+\)\s*\|\s*Page\s+\d+/gi)) {
-        setDetectedFormat("Kindle Notes Export");
-      } else if (fullText.match(/Highlight\s+\((?:Yellow|Blue|Pink|Orange|Green)\)\s*\|\s*Location\s+\d+/gi)) {
-        setDetectedFormat("Kindle Highlights");
+      // Detect the format of the PDF
+      const format = detectPDFFormat(fullText);
+      if (format) {
+        setDetectedFormat(format);
       }
       
       // Extract individual highlights

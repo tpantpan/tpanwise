@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload } from 'lucide-react';
@@ -21,6 +20,24 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
   isUploading,
   formatType,
 }) => {
+  const formatHighlightText = (text: string) => {
+    const hasBullets = text.includes('•') || text.includes('\n-') || /\n\s*\d+\./.test(text);
+    
+    if (hasBullets) {
+      const maxLength = 300;
+      const displayText = text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+      
+      return displayText.split('\n').map((line, i) => (
+        <React.Fragment key={i}>
+          {line}
+          {i < displayText.split('\n').length - 1 && <br />}
+        </React.Fragment>
+      ));
+    }
+    
+    return text.length > 150 ? `${text.substring(0, 150)}...` : text;
+  };
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -43,8 +60,8 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
               onChange={() => toggleHighlight(index)}
               className="mt-1 shrink-0"
             />
-            <span>
-              {item.text.length > 150 ? `${item.text.substring(0, 150)}...` : item.text}
+            <span className="whitespace-pre-line">
+              {formatHighlightText(item.text)}
             </span>
           </div>
         ))}
