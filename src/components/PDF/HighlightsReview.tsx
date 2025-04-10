@@ -10,6 +10,7 @@ interface HighlightsReviewProps {
   onSave: () => void;
   onCancel: () => void;
   isUploading: boolean;
+  formatType?: string | null;
 }
 
 const HighlightsReview: React.FC<HighlightsReviewProps> = ({
@@ -18,6 +19,7 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
   onSave,
   onCancel,
   isUploading,
+  formatType,
 }) => {
   return (
     <div className="space-y-4">
@@ -25,6 +27,7 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
         <h3 className="text-lg font-medium">Found {highlights.length} highlights</h3>
         <p className="text-sm text-muted-foreground">
           We identified the following highlights from your PDF. Uncheck any items you don't want to save.
+          {formatType && <span className="block mt-1 font-medium">Format: {formatType}</span>}
         </p>
       </div>
       
