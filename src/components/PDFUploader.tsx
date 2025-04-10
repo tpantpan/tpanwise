@@ -19,6 +19,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [extractedText, setExtractedText] = useState<HighlightCandidate[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [detectedFormat, setDetectedFormat] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Parse PDF and extract text
@@ -41,6 +42,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
     try {
       setIsUploading(true);
       setError(null);
+      setDetectedFormat(null);
 
       // Extract text from PDF
       const fullText = await extractTextFromPDF(file);
@@ -51,6 +53,13 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
         return;
       }
       
+      // Detect if this is a Kindle notes export
+      if (fullText.match(/Highlight\s+\(\w+\)\s*\|\s*Page\s+\d+/gi)) {
+        setDetectedFormat("Kindle Notes Export");
+      } else if (fullText.match(/Highlight\s+\((?:Yellow|Blue|Pink|Orange|Green)\)\s*\|\s*Location\s+\d+/gi)) {
+        setDetectedFormat("Kindle Highlights");
+      }
+      
       // Extract individual highlights
       const highlights = extractHighlights(fullText);
       
@@ -59,6 +68,11 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
         setIsUploading(false);
         return;
       }
+      
+      toast({
+        title: 'Highlights detected',
+        description: `Found ${highlights.length} potential highlights in your document`,
+      });
       
       setExtractedText(highlights.map(text => ({ text, selected: true })));
       setIsUploading(false);
@@ -110,6 +124,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
       setFile(null);
       setExtractedText([]);
       setIsUploading(false);
+      setDetectedFormat(null);
       
       if (onSuccess) {
         onSuccess();
@@ -124,6 +139,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
   // Reset the highlights view
   const cancelHighlightsReview = () => {
     setExtractedText([]);
+    setDetectedFormat(null);
   };
 
   return (
@@ -131,6 +147,14 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {detectedFormat && (
+        <Alert>
+          <AlertDescription>
+            Detected format: <strong>{detectedFormat}</strong>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -156,6 +180,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
           onSave={saveHighlights}
           onCancel={cancelHighlightsReview}
           isUploading={isUploading}
+          formatType={detectedFormat}
         />
       )}
     </div>

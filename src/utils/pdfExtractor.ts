@@ -38,12 +38,42 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
 export const extractHighlights = (text: string): string[] => {
   const highlights: string[] = [];
   
-  // Pattern 1: Split by highlight indicators like "Highlight (Yellow) | Location X"
+  // Pattern 1: Kindle notes format
+  // Example: "Highlight (Yellow) | Page 30" followed by the highlight text
+  const kindleHighlightPattern = /Highlight\s+\(\w+\)\s*\|\s*Page\s+\d+/gi;
+  
+  if (text.match(kindleHighlightPattern)) {
+    console.log("Identified Kindle notes format");
+    
+    // Split by the highlight markers
+    const segments = text.split(kindleHighlightPattern).filter(Boolean);
+    
+    // Skip the first segment if it appears to be metadata/title
+    const startIndex = segments[0].includes("Kindle") || 
+                       segments[0].includes("by ") || 
+                       segments[0].length < 100 ? 1 : 0;
+    
+    // Process the actual highlights (skip title/metadata)
+    for (let i = startIndex; i < segments.length; i++) {
+      const segment = segments[i].trim();
+      if (segment.length > 15) { // Skip very short segments
+        highlights.push(segment);
+      }
+    }
+    
+    if (highlights.length > 0) {
+      return highlights;
+    }
+  }
+  
+  // Pattern 2: General highlight markers
   const highlightPattern = /Highlight\s+\((?:Yellow|Blue|Pink|Orange|Green)\)\s*\|\s*Location\s+\d+/gi;
   if (text.match(highlightPattern)) {
     const segments = text.split(highlightPattern).filter(Boolean);
     // The first segment might be introductory text, not a highlight
-    for (let i = 0; i < segments.length; i++) {
+    const startIndex = segments[0].includes("Kindle") || segments[0].length < 100 ? 1 : 0;
+    
+    for (let i = startIndex; i < segments.length; i++) {
       const segment = segments[i].trim();
       if (segment.length > 15) { // Skip very short segments
         highlights.push(segment);
@@ -52,7 +82,34 @@ export const extractHighlights = (text: string): string[] => {
     return highlights;
   }
   
-  // Pattern 2: Split by bullet points and numbered lists
+  // Pattern 3: Number of highlights header
+  const highlightCountPattern = /(\d+)\s+Highlights?\s+\|\s+\w+\s+\(\d+\)/i;
+  const highlightCountMatch = text.match(highlightCountPattern);
+  
+  if (highlightCountMatch) {
+    console.log(`Detected ${highlightCountMatch[1]} highlights in document`);
+    
+    // If we found a header like "73 Highlights | Yellow (73)", 
+    // look for patterns like "Highlight (Yellow) | Page X"
+    const pageHighlightPattern = /Highlight\s+\(\w+\)\s*\|\s*Page\s+\d+/gi;
+    const segments = text.split(pageHighlightPattern);
+    
+    // Skip the first segment as it's likely metadata
+    if (segments.length > 1) {
+      for (let i = 1; i < segments.length; i++) {
+        const segment = segments[i].trim();
+        if (segment.length > 15) {
+          highlights.push(segment);
+        }
+      }
+      
+      if (highlights.length > 0) {
+        return highlights;
+      }
+    }
+  }
+  
+  // Pattern 4: Split by bullet points and numbered lists
   const bulletPattern = /(?:\n|\r\n?)\s*(?:•|\*|-|\d+\.)\s+/;
   if (text.match(bulletPattern)) {
     const segments = text.split(bulletPattern).filter(Boolean);
@@ -68,7 +125,7 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
-  // Pattern 3: Split by paragraph breaks (empty lines)
+  // Pattern 5: Split by paragraph breaks (empty lines)
   const paragraphs = text.split(/\n\s*\n/).filter(Boolean);
   for (const paragraph of paragraphs) {
     const trimmed = paragraph.trim();
@@ -77,7 +134,7 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
-  // Pattern 4: If nothing else worked, try to identify complete sentences or thoughts
+  // Pattern 6: If nothing else worked, try to identify complete sentences or thoughts
   if (highlights.length <= 1 && text.length > 200) {
     // First try to split by common sentence endings
     const sentencePattern = /(?<=[.!?])\s+(?=[A-Z])/g;
