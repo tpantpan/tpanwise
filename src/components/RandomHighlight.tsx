@@ -20,7 +20,18 @@ const RandomHighlight: React.FC = () => {
       // Simulate a slight delay for animation
       await new Promise(resolve => setTimeout(resolve, 400));
       const randomHighlight = await getRandomHighlight();
-      setHighlight(randomHighlight);
+      
+      // Handle the case where getRandomHighlight may return a single Highlight or an array
+      if (randomHighlight) {
+        // If it's an array, take the first item. If it's a single item, use it directly.
+        const singleHighlight = Array.isArray(randomHighlight) 
+          ? randomHighlight[0] 
+          : randomHighlight;
+        
+        setHighlight(singleHighlight);
+      } else {
+        setHighlight(null);
+      }
     } catch (error) {
       console.error('Error loading random highlight:', error);
     } finally {
@@ -58,7 +69,7 @@ const RandomHighlight: React.FC = () => {
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between">
             <span className="text-xs text-secondary font-medium">
-              {highlight.category}
+              {highlight?.category}
             </span>
             <Button 
               variant="ghost" 
@@ -75,7 +86,7 @@ const RandomHighlight: React.FC = () => {
         <CardContent className="pt-6 pb-4">
           <blockquote className="quote-text text-lg md:text-xl font-medium text-foreground relative">
             <span className="absolute -top-4 -left-1 text-4xl text-primary/20">"</span>
-            {highlight.text}
+            {highlight?.text}
             <span className="absolute -bottom-4 -right-1 text-4xl text-primary/20">"</span>
           </blockquote>
         </CardContent>
@@ -83,11 +94,11 @@ const RandomHighlight: React.FC = () => {
         <CardFooter className="pt-2 flex justify-end">
           <div className="text-sm">
             <p className="text-foreground font-medium">
-              {highlight.author}
+              {highlight?.author}
             </p>
-            {highlight.source && (
+            {highlight?.source && (
               <p className="text-muted-foreground italic">
-                {highlight.source}
+                {highlight?.source}
               </p>
             )}
           </div>
