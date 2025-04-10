@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload } from 'lucide-react';
@@ -21,20 +22,27 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
   formatType,
 }) => {
   const formatHighlightText = (text: string) => {
-    const hasBullets = text.includes('•') || text.includes('\n-') || /\n\s*\d+\./.test(text);
+    // Check if this is a structured highlight with bullet points or numbering
+    const hasStructure = text.includes('\n') && (
+      text.match(/\d+\.\s/) || 
+      text.match(/[a-z]\.\s/) || 
+      text.match(/[ivxlcdm]+\.\s/) || 
+      text.includes('•') || 
+      text.includes('\n-') ||
+      text.match(/\n\s*\d+\./)
+    );
     
-    if (hasBullets) {
-      const maxLength = 300;
-      const displayText = text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
-      
-      return displayText.split('\n').map((line, i) => (
+    if (hasStructure) {
+      // For structured content, we want to preserve the formatting
+      return text.split('\n').map((line, i) => (
         <React.Fragment key={i}>
           {line}
-          {i < displayText.split('\n').length - 1 && <br />}
+          {i < text.split('\n').length - 1 && <br />}
         </React.Fragment>
       ));
     }
     
+    // For regular text, truncate if it's too long
     return text.length > 150 ? `${text.substring(0, 150)}...` : text;
   };
 
@@ -48,7 +56,7 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
         </p>
       </div>
       
-      <div className="max-h-60 overflow-y-auto space-y-2 border rounded-md p-4">
+      <div className="max-h-[400px] overflow-y-auto space-y-2 border rounded-md p-4">
         {highlights.map((item, index) => (
           <div 
             key={index} 
@@ -60,9 +68,9 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
               onChange={() => toggleHighlight(index)}
               className="mt-1 shrink-0"
             />
-            <span className="whitespace-pre-line">
+            <div className="whitespace-pre-line">
               {formatHighlightText(item.text)}
-            </span>
+            </div>
           </div>
         ))}
       </div>

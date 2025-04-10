@@ -1,4 +1,3 @@
-
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Set the worker source for PDF.js
@@ -129,123 +128,87 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
 
-  // Pattern 4: Structured document with numbered sections and bullet points
-  if (text.match(/^\d+\.\s+.+?\n/m) || text.match(/^\s*•\s+.+?\n/m)) {
-    detectedFormat = "Structured Document with Bullet Points";
-    
-    // Try to detect structured lists with multi-level bullets (like in the screenshots)
-    const structuredPattern = /(?:\d+\.|\s*[a-z]\.|\s*[ivxlcdm]+\.|\s*•|\s*-)\s+(.+?)(?=\n(?:\d+\.|\s*[a-z]\.|\s*[ivxlcdm]+\.|\s*•|\s*-)|$)/gis;
-    const structuredMatches = Array.from(text.matchAll(structuredPattern));
-    
-    if (structuredMatches.length > 0) {
-      // Get the parent-child relationships for nested bullet points
-      let currentParent: string | null = null;
-      let currentHighlight = "";
-      
-      for (const match of structuredMatches) {
-        const content = match[0].trim();
-        
-        // Detect if this is a main bullet or a sub-bullet
-        const isMainPoint = content.match(/^\d+\./);
-        const isSubPoint = content.match(/^\s*[a-z]\./);
-        const isSubSubPoint = content.match(/^\s*[ivxlcdm]+\./);
-        
-        if (isMainPoint) {
-          // If we had a previous highlight, add it
-          if (currentHighlight) {
-            highlights.push(currentHighlight.trim());
-            currentHighlight = "";
-          }
-          currentParent = content;
-          currentHighlight = content;
-        } else if (isSubPoint || isSubSubPoint) {
-          // This is a sub-point of the main bullet, append to current highlight
-          if (currentHighlight) {
-            currentHighlight += "\n" + content;
-          } else {
-            // If somehow we got a sub-point without a parent
-            currentHighlight = content;
-          }
-        } else {
-          // Independent bullet point
-          if (currentHighlight) {
-            highlights.push(currentHighlight.trim());
-          }
-          currentHighlight = content;
-        }
-      }
-      
-      // Add the last highlight if it exists
-      if (currentHighlight) {
-        highlights.push(currentHighlight.trim());
-      }
-      
-      if (highlights.length > 0) {
-        return highlights;
-      }
-    }
-  }
+  // Pattern 4: Structured document with main sections (like "6 benefits of Bizlove")
+  // This pattern handles structured documents with numbered sections and nested bullet points
+  const mainSectionPattern = /^\d+\.\s+.+?(?=\n\d+\.|$)/gms;
+  const mainSections = text.match(mainSectionPattern);
   
-  // Pattern 5: Normal text with underlined/highlighted sections
-  // In PDFs with underlined or highlighted text, we often see special characters or
-  // formatting that might get extracted differently
-  const paragraphs = text.substring(contentStartIndex).split(/\n\s*\n/).filter(Boolean);
-  
-  // Filter out obvious title/metadata sections
-  const contentParagraphs = paragraphs.filter(p => {
-    const normalizedP = p.toLowerCase();
-    const isTitleOrMetadata = 
-      normalizedP.includes("copyright") ||
-      normalizedP.match(/^chapter\s+\d+$/) ||
-      normalizedP.match(/^\s*page\s+\d+\s*$/);
+  if (mainSections && mainSections.length > 0) {
+    detectedFormat = "Structured Document with Numbered Sections";
     
-    return !isTitleOrMetadata;
-  });
-  
-  // Content after the title, likely actual highlights
-  if (contentParagraphs.length > 0) {
-    // If we have underlined segments (common in some PDF exports)
-    const underlinedPattern = /[^\.\n]{20,}[\.!\?]/g;
-    let foundHighlights = false;
-    
-    for (const paragraph of contentParagraphs) {
-      const trimmed = paragraph.trim();
-      
-      // Skip short paragraphs or ones that look like headers
-      if (trimmed.length < 15 || /^[A-Z\s]{5,30}$/.test(trimmed)) {
-        continue; 
-      }
-      
-      // Check if this paragraph contains underlined segments
-      const underlinedMatches = trimmed.match(underlinedPattern);
-      if (underlinedMatches && underlinedMatches.length > 0) {
-        foundHighlights = true;
-        for (const match of underlinedMatches) {
-          highlights.push(match.trim());
-        }
-      } else if (trimmed.length > 25) {
-        // Treat longer paragraphs as complete thoughts/highlights
-        foundHighlights = true;
-        highlights.push(trimmed);
+    for (const section of mainSections) {
+      if (section.trim().length > 0) {
+        // Each numbered section is a single highlight
+        highlights.push(section.trim());
       }
     }
     
-    if (foundHighlights) {
-      detectedFormat = "Text with Highlighted Passages";
+    if (highlights.length > 0) {
       return highlights;
     }
   }
   
-  // Pattern 6: Bullet points with dash or asterisk
+  // Pattern 5: Hierarchical structure with top-level headings and nested content
+  const headingPattern = /^(?:\d+\.\s+|\#|\*\*).+?(?=(?:\n\d+\.\s+|\n\#|\n\*\*)|$)/gms;
+  const headings = text.match(headingPattern);
+  
+  if (headings && headings.length > 0) {
+    detectedFormat = "Document with Hierarchical Headings";
+    
+    for (const heading of headings) {
+      if (heading.trim().length > 0) {
+        highlights.push(heading.trim());
+      }
+    }
+    
+    if (highlights.length > 0) {
+      return highlights;
+    }
+  }
+
+  // Pattern 6: Bullet points with dash or asterisk - but check if they're part of a larger structure
+  // First check if there's a structured outline like in the screenshots
+  const structuredOutlinePattern = /^\s*\d+\.\s+.+?(?=\n\s*\d+\.|$)/gms;
+  const outlineSections = text.match(structuredOutlinePattern);
+  
+  if (outlineSections && outlineSections.length > 0) {
+    detectedFormat = "Structured Outline Document";
+    
+    for (const section of outlineSections) {
+      // Keep each top-level section with all its sub-points as a single highlight
+      highlights.push(section.trim());
+    }
+    
+    if (highlights.length > 0) {
+      return highlights;
+    }
+  }
+  
+  // If we haven't matched any specific structure yet, look for individual bullet points
   const bulletPattern = /(?:\n|\r\n?)\s*(?:•|\*|-|\d+\.)\s+/;
   if (text.match(bulletPattern)) {
     detectedFormat = "Bullet Point Format";
-    const segments = text.split(bulletPattern).filter(Boolean);
-    for (const segment of segments) {
-      const trimmed = segment.trim();
-      // Skip segments that look like titles/headers
-      if (trimmed.length > 15 && !/^[A-Z\s]{5,30}$/.test(trimmed)) {
-        highlights.push(trimmed);
+    
+    // First try to find groups of bullet points that belong together
+    const bulletGroups = text.split(/\n\s*\n/).filter(Boolean);
+    
+    if (bulletGroups.length > 1) {
+      // We have distinct groups separated by blank lines
+      for (const group of bulletGroups) {
+        const trimmed = group.trim();
+        if (trimmed.length > 15 && trimmed.match(bulletPattern)) {
+          highlights.push(trimmed);
+        }
+      }
+    } else {
+      // No clear grouping, treat each bullet point as separate
+      const segments = text.split(bulletPattern).filter(Boolean);
+      for (const segment of segments) {
+        const trimmed = segment.trim();
+        // Skip segments that look like titles/headers
+        if (trimmed.length > 15 && !/^[A-Z\s]{5,30}$/.test(trimmed)) {
+          highlights.push(trimmed);
+        }
       }
     }
     
@@ -312,6 +275,11 @@ export const extractHighlights = (text: string): string[] => {
 
 // Function to detect the format of the PDF
 export const detectPDFFormat = (text: string): string | null => {
+  // Check for structured document with numbered sections
+  if (text.match(/^\d+\.\s+.+?(?=\n\d+\.|$)/gms)) {
+    return "Structured Document with Numbered Sections";
+  }
+  
   // Kindle notes format with page numbers
   if (text.match(/Highlight\s+\(\w+\)\s*\|\s*Page\s+\d+/gi)) {
     return "Kindle Notes (Page Format)";
