@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,10 +10,11 @@ import {
   loadEmailSettings, 
   saveEmailSettings, 
   getNextScheduledDate, 
-  sendHighlightByEmail 
+  sendHighlightByEmail,
+  triggerScheduledEmail
 } from '@/utils/highlights';
 import { EmailFrequency } from '@/types/highlight';
-import { Mail, Clock, AlertTriangle } from 'lucide-react';
+import { Mail, Clock, AlertTriangle, Hash } from 'lucide-react';
 import { format } from 'date-fns';
 
 const EmailSettings: React.FC = () => {
@@ -24,10 +24,12 @@ const EmailSettings: React.FC = () => {
     frequency: 'daily' as EmailFrequency,
     enabled: false,
     lastSent: undefined as Date | undefined,
-    deliveryTime: '09:00'  // Default to 9 AM
+    deliveryTime: '09:00',
+    highlightCount: 1
   });
   const [loading, setLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isTestingScheduled, setIsTestingScheduled] = useState(false);
   
   const nextDate = getNextScheduledDate(settings);
 
@@ -40,7 +42,8 @@ const EmailSettings: React.FC = () => {
           frequency: emailSettings.frequency,
           enabled: emailSettings.enabled,
           lastSent: emailSettings.lastSent,
-          deliveryTime: emailSettings.deliveryTime || '09:00'
+          deliveryTime: emailSettings.deliveryTime || '09:00',
+          highlightCount: emailSettings.highlightCount || 1
         });
       } catch (error) {
         console.error('Error loading email settings:', error);
@@ -80,6 +83,13 @@ const EmailSettings: React.FC = () => {
     }));
   };
 
+  const handleHighlightCountChange = (value: string) => {
+    setSettings(prev => ({
+      ...prev,
+      highlightCount: parseInt(value)
+    }));
+  };
+
   const handleSaveSettings = async () => {
     if (settings.enabled && !settings.email) {
       toast({
@@ -97,7 +107,8 @@ const EmailSettings: React.FC = () => {
         frequency: settings.frequency,
         enabled: settings.enabled,
         lastSent: settings.lastSent,
-        deliveryTime: settings.deliveryTime
+        deliveryTime: settings.deliveryTime,
+        highlightCount: settings.highlightCount
       });
       
       if (success) {
@@ -137,20 +148,20 @@ const EmailSettings: React.FC = () => {
     setIsSending(true);
     
     try {
-      const result = await sendHighlightByEmail(settings.email);
+      const result = await sendHighlightByEmail(settings.email, settings.highlightCount);
       
       if (result) {
         toast({
           title: "Test email sent",
-          description: "A random highlight has been sent to your email address."
+          description: `${settings.highlightCount} random highlight(s) have been sent to your email address.`
         });
         
-        // Update the settings with the new last sent date
         const updatedSettings = await loadEmailSettings();
         setSettings(prev => ({
           ...prev,
           lastSent: updatedSettings.lastSent,
-          deliveryTime: updatedSettings.deliveryTime || prev.deliveryTime
+          deliveryTime: updatedSettings.deliveryTime || prev.deliveryTime,
+          highlightCount: updatedSettings.highlightCount || prev.highlightCount
         }));
       } else {
         toast({
@@ -192,7 +203,6 @@ const EmailSettings: React.FC = () => {
           description: "Your daily highlight has been delivered to your email."
         });
         
-        // Update the settings with the new last sent date
         const updatedSettings = await loadEmailSettings();
         setSettings(prev => ({
           ...prev,
@@ -218,6 +228,45 @@ const EmailSettings: React.FC = () => {
     }
   };
 
+  const handleTestScheduledEmail = async () => {
+    if (!settings.email) {
+      toast({
+        title: "Email required",
+        description: "Please enter your email address to test the 3-hour scheduled email.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsTestingScheduled(true);
+    
+    try {
+      const result = await triggerScheduledEmail(settings.email);
+      
+      if (result) {
+        toast({
+          title: "3-hour scheduled email sent",
+          description: "A test of the 3-hour scheduled email has been sent to your address."
+        });
+      } else {
+        toast({
+          title: "Failed to send scheduled email",
+          description: "Please check your settings and try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error sending scheduled test email:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while testing the scheduled email.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTestingScheduled(false);
+    }
+  };
+
   const formatNextScheduledTime = (date: Date | null, time: string) => {
     if (!date) return null;
     
@@ -239,7 +288,6 @@ const EmailSettings: React.FC = () => {
       settings.lastSent.getDate()
     );
     
-    // Check if last sent is before today and frequency is daily
     return settings.frequency === 'daily' && lastSentDay < today;
   };
 
@@ -316,7 +364,7 @@ const EmailSettings: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="frequency">Delivery Frequency</Label>
             <Select 
@@ -349,6 +397,27 @@ const EmailSettings: React.FC = () => {
               disabled={isSending}
             />
           </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="highlightCount" className="flex items-center gap-2">
+              <Hash className="h-4 w-4" />
+              Highlights Per Email
+            </Label>
+            <Select 
+              value={settings.highlightCount.toString()} 
+              onValueChange={handleHighlightCountChange}
+              disabled={isSending}
+            >
+              <SelectTrigger id="highlightCount">
+                <SelectValue placeholder="Select count" />
+              </SelectTrigger>
+              <SelectContent>
+                {[...Array(10)].map((_, i) => (
+                  <SelectItem key={i} value={(i + 1).toString()}>{i + 1}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         
         {settings.lastSent && (
@@ -361,6 +430,21 @@ const EmailSettings: React.FC = () => {
             )}
           </div>
         )}
+        
+        <div className="rounded-lg border p-4 mt-4">
+          <h3 className="text-sm font-medium mb-2">3-Hour Scheduled Highlights</h3>
+          <p className="text-sm text-muted-foreground mb-3">
+            We've set up a special delivery that sends one highlight every 3 hours to your email address.
+          </p>
+          <Button 
+            variant="secondary" 
+            size="sm"
+            onClick={handleTestScheduledEmail}
+            disabled={isTestingScheduled || !settings.email}
+          >
+            {isTestingScheduled ? "Sending..." : "Test 3-Hour Scheduled Email"}
+          </Button>
+        </div>
       </CardContent>
       <CardFooter className="flex justify-between">
         <Button 

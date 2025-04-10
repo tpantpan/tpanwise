@@ -142,7 +142,7 @@ export const toggleFavorite = async (id: string): Promise<boolean> => {
 };
 
 // Get a random highlight
-export const getRandomHighlight = async (): Promise<Highlight | null> => {
+export const getRandomHighlight = async (count: number = 1): Promise<Highlight | Highlight[] | null> => {
   try {
     const highlights = await loadHighlights();
     
@@ -150,8 +150,28 @@ export const getRandomHighlight = async (): Promise<Highlight | null> => {
       return null;
     }
     
-    const randomIndex = Math.floor(Math.random() * highlights.length);
-    return highlights[randomIndex];
+    if (count === 1) {
+      const randomIndex = Math.floor(Math.random() * highlights.length);
+      return highlights[randomIndex];
+    } else {
+      // Get multiple random highlights
+      const selectedHighlights: Highlight[] = [];
+      const maxCount = Math.min(count, highlights.length);
+      
+      // Create a copy of the highlights array to avoid modifying the original
+      const availableHighlights = [...highlights];
+      
+      for (let i = 0; i < maxCount; i++) {
+        // Get a random index from the remaining highlights
+        const randomIndex = Math.floor(Math.random() * availableHighlights.length);
+        // Add the highlight to the selected array
+        selectedHighlights.push(availableHighlights[randomIndex]);
+        // Remove the selected highlight from the available array
+        availableHighlights.splice(randomIndex, 1);
+      }
+      
+      return selectedHighlights;
+    }
   } catch (error) {
     console.error('Error getting random highlight:', error);
     return null;
@@ -207,18 +227,18 @@ export const saveEmailSettings = async (settings: EmailSettings): Promise<boolea
 };
 
 // Send a highlight by email using Supabase edge function
-export const sendHighlightByEmail = async (email: string): Promise<boolean> => {
+export const sendHighlightByEmail = async (email: string, highlightCount: number = 1): Promise<boolean> => {
   try {
-    console.log(`Sending highlight to: ${email}`);
+    console.log(`Sending ${highlightCount} highlight(s) to: ${email}`);
     
-    // Get a random highlight to send
-    const highlight = await getRandomHighlight();
-    if (!highlight) {
+    // Get random highlights based on the count
+    const highlights = await getRandomHighlight(highlightCount);
+    if (!highlights) {
       console.error('No highlights available to send');
       return false;
     }
     
-    console.log('Selected highlight for email:', highlight);
+    console.log('Selected highlights for email:', highlights);
     
     // Get the current delivery time setting
     const settings = await loadEmailSettings();
@@ -227,13 +247,9 @@ export const sendHighlightByEmail = async (email: string): Promise<boolean> => {
     const { data, error } = await supabase.functions.invoke('send-highlight', {
       body: {
         email: email,
-        highlight: {
-          text: highlight.text,
-          author: highlight.author,
-          source: highlight.source,
-          category: highlight.category
-        },
-        deliveryTime: settings.deliveryTime
+        highlight: highlights,
+        deliveryTime: settings.deliveryTime,
+        count: highlightCount
       }
     });
     
@@ -251,6 +267,30 @@ export const sendHighlightByEmail = async (email: string): Promise<boolean> => {
     return true;
   } catch (error) {
     console.error('Error sending highlight by email:', error);
+    return false;
+  }
+};
+
+// Trigger the 3-hour scheduled email manually (for testing)
+export const triggerScheduledEmail = async (email: string): Promise<boolean> => {
+  try {
+    console.log(`Triggering 3-hour scheduled email for: ${email}`);
+    
+    const { data, error } = await supabase.functions.invoke('scheduled-highlight', {
+      body: {
+        activeEmail: email
+      }
+    });
+    
+    if (error) {
+      console.error('Error invoking scheduled-highlight function:', error);
+      return false;
+    }
+    
+    console.log('Scheduled email function response:', data);
+    return true;
+  } catch (error) {
+    console.error('Error triggering scheduled email:', error);
     return false;
   }
 };

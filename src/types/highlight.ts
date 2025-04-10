@@ -17,4 +17,5 @@ export interface EmailSettings {
   enabled: boolean;
   lastSent?: Date;
   deliveryTime: string; // Format: "HH:MM" in 24-hour format
+  highlightCount?: number; // Number of highlights to send in each email (1-10)
 }

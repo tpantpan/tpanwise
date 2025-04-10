@@ -11,8 +11,9 @@ import {
 } from '@/components/ui/select';
 import { Highlight } from '@/types/highlight';
 import { loadHighlights } from '@/utils/highlights';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, ListFilter } from 'lucide-react';
 import AddHighlightForm from './AddHighlightForm';
+import { Badge } from '@/components/ui/badge';
 
 const HighlightsList: React.FC = () => {
   const [highlights, setHighlights] = useState<Highlight[]>([]);
@@ -101,6 +102,15 @@ const HighlightsList: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-medium">All Highlights</h2>
+          <Badge variant="secondary" className="ml-2">
+            {highlights.length} total
+          </Badge>
+        </div>
+      </div>
+      
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -134,7 +144,10 @@ const HighlightsList: React.FC = () => {
           <div className="w-36">
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger>
-                <SelectValue placeholder="Sort by" />
+                <div className="flex items-center gap-2">
+                  <ListFilter className="h-4 w-4" />
+                  <SelectValue placeholder="Sort by" />
+                </div>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="newest">Newest</SelectItem>
