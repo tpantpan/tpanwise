@@ -77,17 +77,58 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
-  // If we still don't have meaningful highlights, try to break by sentences
+  // Pattern 4: If nothing else worked, try to identify complete sentences or thoughts
   if (highlights.length <= 1 && text.length > 200) {
+    // First try to split by common sentence endings
     const sentencePattern = /(?<=[.!?])\s+(?=[A-Z])/g;
-    const sentences = text.split(sentencePattern).filter(Boolean);
+    let sentences = text.split(sentencePattern).filter(Boolean);
+    
+    // Improved sentence extraction - ensure we have complete sentences
+    // If we have incomplete sentences that start midway, try to combine them into meaningful units
+    if (sentences.length > 0) {
+      const improvedSentences: string[] = [];
+      let currentSentence = '';
+      
+      for (const sentence of sentences) {
+        // Check if this sentence starts with lowercase (indicating incomplete sentence) 
+        // and there's no punctuation at the end of our current accumulator
+        if (/^[a-z]/.test(sentence) && !currentSentence.match(/[.!?]$/)) {
+          currentSentence += ' ' + sentence;
+        } else {
+          // If we have accumulated content, add it first
+          if (currentSentence) {
+            improvedSentences.push(currentSentence.trim());
+            currentSentence = '';
+          }
+          currentSentence = sentence;
+        }
+      }
+      
+      // Add the last sentence if any
+      if (currentSentence) {
+        improvedSentences.push(currentSentence.trim());
+      }
+      
+      sentences = improvedSentences;
+    }
     
     // Group sentences into reasonable chunks (3-4 sentences per highlight)
     const sentencesPerChunk = 3;
     for (let i = 0; i < sentences.length; i += sentencesPerChunk) {
       const chunk = sentences.slice(i, i + sentencesPerChunk).join(' ');
       if (chunk.trim().length > 15) {
-        highlights.push(chunk.trim());
+        // Check if the chunk starts with a capital letter, otherwise try to find a complete sentence
+        if (/^[A-Z]/.test(chunk.trim())) {
+          highlights.push(chunk.trim());
+        } else {
+          // Try to find the first complete sentence
+          const match = chunk.match(/[A-Z][^.!?]*[.!?]/);
+          if (match) {
+            highlights.push(match[0].trim());
+          } else {
+            highlights.push(chunk.trim());
+          }
+        }
       }
     }
   }

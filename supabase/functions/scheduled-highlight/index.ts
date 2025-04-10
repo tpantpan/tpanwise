@@ -33,13 +33,14 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     // Get all registered emails with enabled settings
-    const { activeEmail } = await req.json();
+    const { activeEmail, currentDate } = await req.json();
     
     if (!activeEmail) {
       throw new Error('No active email provided');
     }
     
     console.log(`Executing 3-hour scheduled job for email: ${activeEmail}`);
+    console.log(`Current date from client: ${currentDate || 'Not provided'}`);
     
     // Get a random highlight
     const highlight = await getRandomHighlight();
@@ -48,7 +49,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Send the email
-    const emailResponse = await sendEmailWithHighlight(activeEmail, highlight);
+    const emailResponse = await sendEmailWithHighlight(activeEmail, highlight, currentDate);
 
     return new Response(JSON.stringify({ success: true, data: emailResponse }), {
       status: 200,
@@ -85,11 +86,11 @@ async function getRandomHighlight(): Promise<Highlight | null> {
 }
 
 // Send an email with the highlight
-async function sendEmailWithHighlight(email: string, highlight: Highlight) {
+async function sendEmailWithHighlight(email: string, highlight: Highlight, currentDateString?: string) {
   const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
   
   // Format the current date for the subject line
-  const currentDate = new Date();
+  const currentDate = currentDateString ? new Date(currentDateString) : new Date();
   const formattedDate = `${currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${currentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
   
   const source = highlight.source ? `<em>${highlight.source}</em>` : '';

@@ -21,6 +21,7 @@ interface EmailRequest {
   highlight: HighlightData | HighlightData[];
   deliveryTime?: string;
   count?: number;
+  currentDate?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -31,7 +32,7 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     console.log('Receiving email request');
-    const { email, highlight, deliveryTime, count = 1 }: EmailRequest = await req.json();
+    const { email, highlight, deliveryTime, count = 1, currentDate }: EmailRequest = await req.json();
 
     if (!email) {
       throw new Error("Email address is required");
@@ -43,13 +44,14 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Sending highlight to ${email}`);
     console.log(`Number of highlights: ${Array.isArray(highlight) ? highlight.length : 1}`);
+    console.log(`Current date from client: ${currentDate || 'Not provided'}`);
     if (deliveryTime) {
       console.log(`Scheduled for daily delivery at: ${deliveryTime}`);
     }
 
     // Format the current date for the subject line
-    const currentDate = new Date();
-    const formattedDate = `${currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+    const currentDateObj = currentDate ? new Date(currentDate) : new Date();
+    const formattedDate = `${currentDateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
     
     // Process highlights (single or multiple)
     const highlightsArray = Array.isArray(highlight) ? highlight : [highlight];

@@ -1,5 +1,5 @@
 
-import { Highlight, EmailFrequency, EmailSettings } from '@/types/highlight';
+import { Highlight, EmailFrequency, EmailSettings, RandomHighlightReturn } from '@/types/highlight';
 import { supabase } from '@/integrations/supabase/client';
 
 // Get next scheduled date based on frequency
@@ -121,6 +121,31 @@ export const deleteHighlight = async (id: string): Promise<boolean> => {
   }
 };
 
+// Delete all highlights with a specific source
+export const deleteHighlightsBySource = async (source: string): Promise<boolean> => {
+  try {
+    const highlights = await loadHighlights();
+    const updatedHighlights = highlights.filter(h => h.source !== source);
+    
+    localStorage.setItem(HIGHLIGHTS_STORAGE_KEY, JSON.stringify(updatedHighlights));
+    return true;
+  } catch (error) {
+    console.error('Error deleting highlights by source:', error);
+    return false;
+  }
+};
+
+// Get all unique sources
+export const getAllSources = async (): Promise<string[]> => {
+  try {
+    const highlights = await loadHighlights();
+    return [...new Set(highlights.map(h => h.source).filter(Boolean))];
+  } catch (error) {
+    console.error('Error getting sources:', error);
+    return [];
+  }
+};
+
 // Toggle favorite status
 export const toggleFavorite = async (id: string): Promise<boolean> => {
   try {
@@ -142,7 +167,7 @@ export const toggleFavorite = async (id: string): Promise<boolean> => {
 };
 
 // Get a random highlight
-export const getRandomHighlight = async (count: number = 1): Promise<Highlight | Highlight[] | null> => {
+export const getRandomHighlight = async (count: number = 1): Promise<RandomHighlightReturn> => {
   try {
     const highlights = await loadHighlights();
     
@@ -200,10 +225,23 @@ export const loadEmailSettings = async (): Promise<EmailSettings> => {
       parsedSettings.lastSent = new Date(parsedSettings.lastSent);
     }
     
-    return {
+    // Update the settings with the current date if the scheduled date is in the past
+    const settings = {
       ...defaultSettings,
       ...parsedSettings
     };
+    
+    // Check if the next scheduled date is in the past
+    const nextScheduledDate = getNextScheduledDate(settings);
+    const now = new Date();
+    
+    if (nextScheduledDate && nextScheduledDate < now && settings.enabled) {
+      console.log('Next scheduled date is in the past, updating last sent date');
+      settings.lastSent = now; // Update the last sent date to today
+      await saveEmailSettings(settings); // Save the updated settings
+    }
+    
+    return settings;
   } catch (error) {
     console.error('Error loading email settings:', error);
     return {
@@ -222,6 +260,38 @@ export const saveEmailSettings = async (settings: EmailSettings): Promise<boolea
     return true;
   } catch (error) {
     console.error('Error saving email settings:', error);
+    return false;
+  }
+};
+
+// Check if email needs to be sent now
+export const checkAndSendScheduledEmail = async (): Promise<boolean> => {
+  try {
+    const settings = await loadEmailSettings();
+    
+    if (!settings.enabled || !settings.email) {
+      return false;
+    }
+    
+    const nextScheduledDate = getNextScheduledDate(settings);
+    const now = new Date();
+    
+    // If the next scheduled date is in the past, send the email
+    if (nextScheduledDate && nextScheduledDate <= now) {
+      console.log('Scheduled time has passed, sending email now');
+      const sent = await sendHighlightByEmail(settings.email, settings.highlightCount || 1);
+      
+      if (sent) {
+        // Update the last sent date to now
+        settings.lastSent = now;
+        await saveEmailSettings(settings);
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error checking and sending scheduled email:', error);
     return false;
   }
 };
@@ -249,7 +319,8 @@ export const sendHighlightByEmail = async (email: string, highlightCount: number
         email: email,
         highlight: highlights,
         deliveryTime: settings.deliveryTime,
-        count: highlightCount
+        count: highlightCount,
+        currentDate: new Date().toISOString() // Include current date for debugging
       }
     });
     
@@ -278,7 +349,8 @@ export const triggerScheduledEmail = async (email: string): Promise<boolean> => 
     
     const { data, error } = await supabase.functions.invoke('scheduled-highlight', {
       body: {
-        activeEmail: email
+        activeEmail: email,
+        currentDate: new Date().toISOString() // Include current date for debugging
       }
     });
     

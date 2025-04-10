@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,8 @@ import {
   saveEmailSettings, 
   getNextScheduledDate, 
   sendHighlightByEmail,
-  triggerScheduledEmail
+  triggerScheduledEmail,
+  checkAndSendScheduledEmail
 } from '@/utils/highlights';
 import { EmailFrequency } from '@/types/highlight';
 import { Mail, Clock, AlertTriangle, Hash } from 'lucide-react';
@@ -30,6 +32,7 @@ const EmailSettings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isTestingScheduled, setIsTestingScheduled] = useState(false);
+  const [isUpdatingSchedule, setIsUpdatingSchedule] = useState(false);
   
   const nextDate = getNextScheduledDate(settings);
 
@@ -58,6 +61,17 @@ const EmailSettings: React.FC = () => {
     };
 
     fetchSettings();
+    
+    // Check if an email needs to be sent when the component mounts
+    const checkScheduledEmails = async () => {
+      try {
+        await checkAndSendScheduledEmail();
+      } catch (error) {
+        console.error('Error checking scheduled emails:', error);
+      }
+    };
+    
+    checkScheduledEmails();
   }, [toast]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,6 +130,9 @@ const EmailSettings: React.FC = () => {
           title: "Settings saved",
           description: "Your email settings have been updated."
         });
+        
+        // Check if an email needs to be sent after saving settings
+        await checkAndSendScheduledEmail();
       } else {
         toast({
           title: "Error",
@@ -195,7 +212,7 @@ const EmailSettings: React.FC = () => {
     setIsSending(true);
     
     try {
-      const result = await sendHighlightByEmail(settings.email);
+      const result = await sendHighlightByEmail(settings.email, settings.highlightCount);
       
       if (result) {
         toast({
@@ -207,7 +224,8 @@ const EmailSettings: React.FC = () => {
         setSettings(prev => ({
           ...prev,
           lastSent: updatedSettings.lastSent,
-          deliveryTime: updatedSettings.deliveryTime || prev.deliveryTime
+          deliveryTime: updatedSettings.deliveryTime || prev.deliveryTime,
+          highlightCount: updatedSettings.highlightCount || prev.highlightCount
         }));
       } else {
         toast({
@@ -225,6 +243,55 @@ const EmailSettings: React.FC = () => {
       });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleUpdateSchedule = async () => {
+    setIsUpdatingSchedule(true);
+    try {
+      // Update the last sent date to today minus 1 day to trigger next schedule
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const updatedSettings = {
+        ...settings,
+        lastSent: yesterday
+      };
+      
+      const success = await saveEmailSettings(updatedSettings);
+      
+      if (success) {
+        toast({
+          title: "Schedule updated",
+          description: "Your email schedule has been reset to send the next email today."
+        });
+        
+        // Reload settings to get the updated schedule
+        const refreshedSettings = await loadEmailSettings();
+        setSettings(prev => ({
+          ...prev,
+          lastSent: refreshedSettings.lastSent,
+        }));
+        
+        // Check if an email needs to be sent now
+        await checkAndSendScheduledEmail();
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update email schedule",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while updating the schedule.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUpdatingSchedule(false);
     }
   };
 
@@ -275,6 +342,18 @@ const EmailSettings: React.FC = () => {
     scheduledDate.setHours(hours, minutes, 0, 0);
     
     return scheduledDate;
+  };
+  
+  const isScheduleOutdated = () => {
+    if (!settings.lastSent || !nextDate) return false;
+    
+    const now = new Date();
+    const nextScheduledDateTime = formatNextScheduledTime(nextDate, settings.deliveryTime || '09:00');
+    
+    if (!nextScheduledDateTime) return false;
+    
+    // Check if the next scheduled date is in the past
+    return nextScheduledDateTime < now;
   };
   
   const isDailyEmailMissed = () => {
@@ -329,6 +408,27 @@ const EmailSettings: React.FC = () => {
                 disabled={isSending}
               >
                 {isSending ? "Sending..." : "Send today's highlight now"}
+              </Button>
+            </div>
+          </div>
+        )}
+        
+        {isScheduleOutdated() && (
+          <div className="p-4 border border-red-200 bg-red-50 rounded-md flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-red-700">Schedule is outdated</p>
+              <p className="text-sm text-red-600">
+                Your email schedule dates are in the past. Click below to update the schedule to the current date.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="mt-2 bg-white border-red-200 hover:bg-red-50 text-red-700"
+                onClick={handleUpdateSchedule}
+                disabled={isUpdatingSchedule}
+              >
+                {isUpdatingSchedule ? "Updating..." : "Update schedule to current date"}
               </Button>
             </div>
           </div>
