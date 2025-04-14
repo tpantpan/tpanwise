@@ -72,7 +72,36 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
-  // Check for horizontal line separators if HIGHLIGHT markers aren't found
+  // NEW: Check for "Highlight (Yellow) | Page X" pattern
+  const highlightPagePattern = /Highlight\s*\(\w+\)\s*\|\s*Page\s+\d+/gi;
+  
+  if (text.match(highlightPagePattern)) {
+    console.log("Detected 'Highlight (Yellow) | Page X' pattern");
+    
+    // Split the content by the highlight page markers
+    const segments = text.split(highlightPagePattern).map(s => s.trim()).filter(Boolean);
+    
+    // Skip the first segment if it looks like metadata/title (less than 100 characters and few lines)
+    // This helps avoid including document title/author information
+    const startIndex = (segments[0].length < 100 && segments[0].split('\n').length <= 3) ? 1 : 0;
+    
+    // Add each segment as a highlight
+    for (let i = startIndex; i < segments.length; i++) {
+      const segment = segments[i].trim();
+      
+      // Skip very short segments that might be just page numbers or headers (at least 10 chars)
+      if (segment.length > 10) {
+        highlights.push(segment);
+      }
+    }
+    
+    if (highlights.length > 0) {
+      console.log(`Found ${highlights.length} highlights using 'Highlight (Yellow) | Page X' pattern`);
+      return highlights;
+    }
+  }
+  
+  // Check for horizontal line separators if previous methods aren't found
   const horizontalLinePattern = /\n\s*[-_=–—]{3,}\s*\n|\n\s*[-_]\s*\n/g;
   
   // If we can split by horizontal lines, do it
@@ -254,6 +283,11 @@ export const detectPDFFormat = (text: string): string | null => {
   // Check for HIGHLIGHT markers
   if (text.match(/\bHIGHLIGHT\b/gi)) {
     return "HIGHLIGHT Marker Format";
+  }
+  
+  // NEW: Check for "Highlight (Yellow) | Page X" pattern
+  if (text.match(/Highlight\s*\(\w+\)\s*\|\s*Page\s+\d+/gi)) {
+    return "Kindle Highlights Format";
   }
   
   // Check for horizontal line separators
