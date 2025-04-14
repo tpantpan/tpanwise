@@ -3,6 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload } from 'lucide-react';
 import { HighlightCandidate } from '@/utils/pdfExtractor';
+import { Separator } from '@/components/ui/separator';
 
 interface HighlightsReviewProps {
   highlights: HighlightCandidate[];
@@ -40,12 +41,16 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
         // Add appropriate indentation for sub-items
         const isSubItem = line.trim().match(/^\s*[a-z]\.\s/);
         const isSubSubItem = line.trim().match(/^\s*[ivxlcdm]+\.\s/) || line.trim().match(/^\s*\d+\.\d+\.\s/);
+        const isNumbered = line.trim().match(/^\s*\d+\.\s/);
+        const isBullet = line.trim().match(/^\s*[•\-*]\s/);
         
         let className = '';
         if (isSubItem) {
           className = 'pl-4'; // First level indent
         } else if (isSubSubItem) {
           className = 'pl-8'; // Second level indent
+        } else if (isNumbered || isBullet) {
+          className = ''; // No extra indent for top-level numbered/bulleted items
         }
         
         return (
@@ -96,6 +101,11 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
             />
             <div className="whitespace-pre-line">
               {formatHighlightText(item.text)}
+              {index < highlights.length - 1 && (
+                <div className="pt-2 opacity-50">
+                  <Separator className="mt-1" />
+                </div>
+              )}
             </div>
           </div>
         ))}

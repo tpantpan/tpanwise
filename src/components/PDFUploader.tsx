@@ -57,6 +57,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
       const format = detectPDFFormat(fullText);
       if (format) {
         setDetectedFormat(format);
+        console.log(`Detected PDF format: ${format}`);
       }
       
       // Extract individual highlights

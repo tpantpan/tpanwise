@@ -38,8 +38,8 @@ export const extractHighlights = (text: string): string[] => {
   const highlights: string[] = [];
   let detectedFormat: string | null = null;
   
-  // Remove extra whitespace and normalize line breaks
-  const cleanText = text.replace(/\r\n/g, '\n').replace(/\s+/g, ' ').trim();
+  // Remove excessive whitespace while preserving paragraph breaks
+  const cleanText = text.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
   
   // First detect if this is a title/author document header (common in many formats)
   // We'll look for patterns like "Title\nAuthor" at the beginning of the document
@@ -53,48 +53,30 @@ export const extractHighlights = (text: string): string[] => {
     console.log("Detected title and author at start of document, skipping for highlight extraction");
   }
 
-  // Pattern 0: Check for section headers like "6 benefits of Bizlove"
-  const sectionHeaderPattern = /(\d+\s+benefits\s+of\s+\w+|\w+\s+benefits\s+of\s+\w+)/gi;
-  const sectionHeaderMatches = [...text.matchAll(sectionHeaderPattern)];
-  
-  if (sectionHeaderMatches.length > 0) {
-    console.log(`Detected section headers: ${sectionHeaderMatches.map(m => m[0]).join(', ')}`);
-    detectedFormat = "Structured Document with Section Headers";
+  // NEW: Check for horizontal line separators (e.g., "______" or "------" or "=====" or "-----")
+  // This is a strong indicator of highlights separation in the document
+  const horizontalLinePattern = /\n\s*[-_=]{3,}\s*\n/g;
+  if (text.match(horizontalLinePattern)) {
+    console.log("Detected horizontal line separators between highlights");
+    detectedFormat = "Horizontal Line Separated Format";
     
-    // Extract paragraphs that end before section headers
-    let lastIndex = 0;
-    let paragraphs: string[] = [];
+    // Split the content by horizontal lines
+    const segments = text.split(horizontalLinePattern).map(s => s.trim()).filter(Boolean);
     
-    for (const match of sectionHeaderMatches) {
-      if (match.index) {
-        const precedingText = text.substring(lastIndex, match.index).trim();
-        if (precedingText.length > 50) {  // Only include substantive paragraphs
-          paragraphs.push(precedingText);
-        }
-        lastIndex = match.index;
+    // Skip the first segment if it looks like metadata/title
+    const startIndex = (segments[0].length < 100 && segments[0].split('\n').length <= 3) ? 1 : 0;
+    
+    // Add each segment as a highlight
+    for (let i = startIndex; i < segments.length; i++) {
+      const segment = segments[i].trim();
+      // Skip very short segments that might be just page numbers or headers
+      if (segment.length > 20) {
+        highlights.push(segment);
       }
     }
-    
-    // Add final paragraph after the last section header
-    if (lastIndex < text.length) {
-      const remainingText = text.substring(lastIndex).trim();
-      
-      // Check if the remaining text is a structured section (like "6 benefits of Bizlove")
-      if (remainingText.match(/^\d+\s+benefits\s+of\s+\w+/i)) {
-        // This is a structured section with numbered items
-        // We want to keep this entire section as one highlight
-        paragraphs.push(remainingText);
-      } else {
-        // Process the remaining text using other patterns
-        const structuredPoints = extractStructuredPoints(remainingText);
-        paragraphs = [...paragraphs, ...structuredPoints];
-      }
-    }
-    
-    // Add the extracted paragraphs as highlights
-    highlights.push(...paragraphs.filter(p => p.trim().length > 20));
     
     if (highlights.length > 0) {
+      console.log(`Found ${highlights.length} highlights using horizontal line separators`);
       return highlights;
     }
   }
@@ -175,69 +157,80 @@ export const extractHighlights = (text: string): string[] => {
   }
 
   // Pattern 4: Look for explicit numbered sections that should be treated as complete highlights
-  // Like "6 benefits of Bizlove" followed by numbered items
-  const numberedSectionPattern = /(\d+\s+benefits\s+of\s+\w+|\w+\s+benefits\s+of\s+\w+)[\s\S]*?(?=\d+\s+benefits\s+of\s+\w+|\w+\s+benefits\s+of\s+\w+|$)/gi;
-  const sections = [...text.matchAll(numberedSectionPattern)];
+  // This could be like "6 benefits of Bizlove" and its bullet points
+  const numberedSectionPattern = /(\d+\s+benefits\s+of\s+\w+|\w+\s+benefits\s+of\s+\w+)/i;
+  if (text.match(numberedSectionPattern)) {
+    // Instead of treating the entire section as one highlight,
+    // we'll treat it as individual highlights based on other separators
+    console.log("Detected 'benefits' section but will process using other patterns");
+  }
+
+  // Pattern 5: Simple paragraphs separated by blank lines
+  const paraPattern = /\n\s*\n/g; 
+  const paragraphs = text.split(paraPattern).map(p => p.trim()).filter(Boolean);
   
-  if (sections.length > 0) {
-    detectedFormat = "Numbered Benefits Section";
-    
-    for (const section of sections) {
-      const sectionText = section[0].trim();
-      if (sectionText.length > 30) {
-        highlights.push(sectionText);
-      }
-    }
-    
-    if (highlights.length > 0) {
-      return highlights;
-    }
-  }
-
-  // Pattern 5: Check for paragraphs that end with a period followed by a number at the start of the next line
-  // This indicates the start of a new point in a structured document
-  const paragraphWithNumberPattern = /([\s\S]+?)(?:\.\s*\n\s*\d+\.|\.\s*$)/g;
-  const paragraphs = [...text.matchAll(paragraphWithNumberPattern)];
-  
-  if (paragraphs.length > 0) {
-    detectedFormat = "Paragraphs with Numbered Points";
-    
-    for (const paragraph of paragraphs) {
-      const paragraphText = paragraph[1].trim();
-      if (paragraphText.length > 30 && !paragraphText.match(/^[0-9.]+$/)) {
-        highlights.push(paragraphText);
-      }
-    }
-    
-    if (highlights.length > 0) {
-      return highlights;
-    }
-  }
-
-  // Pattern 6: Handle hierarchical structure with main section and sub-points
-  // This is the pattern we need to improve to handle the Bizlove-style content
-  const structuredContent = extractStructuredSections(text);
-  if (structuredContent.length > 0) {
-    detectedFormat = "Hierarchical Structured Document";
-    highlights.push(...structuredContent);
-    
-    if (highlights.length > 0) {
-      return highlights;
-    }
-  }
-
-  // Pattern 7: Simple paragraphs separated by blank lines
-  const simpleParas = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-  if (simpleParas.length > 0) {
+  if (paragraphs.length > 1) {
     detectedFormat = "Paragraph Format";
+    let currentParagraph = "";
     
-    for (const para of simpleParas) {
-      if (para.length > 30 && !isMetadataOrTitle(para)) {
-        highlights.push(para.trim());
+    for (let i = 0; i < paragraphs.length; i++) {
+      const para = paragraphs[i].trim();
+      
+      // Skip very short paragraphs that might just be headers
+      if (para.length < 15 || isMetadataOrTitle(para)) {
+        continue;
+      }
+      
+      // Check if this paragraph has a "benefits" header
+      if (para.match(/(\d+\s+benefits\s+of\s+\w+|\w+\s+benefits\s+of\s+\w+)/i)) {
+        // If we have accumulated content, add it first
+        if (currentParagraph) {
+          highlights.push(currentParagraph.trim());
+          currentParagraph = "";
+        }
+        
+        // Start a new accumulation with this benefits header
+        currentParagraph = para;
+        
+        // Check if the next paragraph is a numbered/bullet list that belongs to this header
+        if (i + 1 < paragraphs.length && 
+            (paragraphs[i+1].match(/^\s*\d+\.\s/) || 
+             paragraphs[i+1].match(/^\s*[•\-*]\s/))) {
+          // Continue in the loop - the next iteration will append this list to currentParagraph
+          continue;
+        }
+      }
+      // Check if this is a continuation of a list or structured content
+      else if (para.match(/^\s*\d+\.\s/) || para.match(/^\s*[a-z]\.\s/) || 
+               para.match(/^\s*[•\-*]\s/)) {
+        // If we have no accumulated content, start with this
+        if (!currentParagraph) {
+          currentParagraph = para;
+        }
+        // Otherwise append to the current paragraph as it's part of the same structure
+        else {
+          currentParagraph += "\n" + para;
+        }
+      }
+      // Regular paragraph
+      else {
+        // If we have accumulated content, add it first
+        if (currentParagraph) {
+          highlights.push(currentParagraph.trim());
+          currentParagraph = "";
+        }
+        
+        highlights.push(para);
       }
     }
     
+    // Add any remaining accumulated content
+    if (currentParagraph) {
+      highlights.push(currentParagraph.trim());
+    }
+    
     if (highlights.length > 0) {
+      console.log(`Found ${highlights.length} highlights using paragraph format`);
       return highlights;
     }
   }
@@ -250,41 +243,6 @@ export const extractHighlights = (text: string): string[] => {
     const sentencePattern = /(?<=[.!?])\s+(?=[A-Z])/g;
     let sentences = text.substring(contentStartIndex).split(sentencePattern).filter(Boolean);
     
-    // Improved sentence extraction - ensure we have complete sentences
-    // If we have incomplete sentences that start midway, try to combine them into meaningful units
-    if (sentences.length > 0) {
-      const improvedSentences: string[] = [];
-      let currentSentence = '';
-      
-      for (const sentence of sentences) {
-        const trimmed = sentence.trim();
-        // Skip very short sentences or obvious headers
-        if (trimmed.length < 15 || /^[A-Z\s]{5,30}$/.test(trimmed)) {
-          continue;
-        }
-        
-        // Check if this sentence starts with lowercase (indicating incomplete sentence) 
-        // and there's no punctuation at the end of our current accumulator
-        if (/^[a-z]/.test(trimmed) && !currentSentence.match(/[.!?]$/)) {
-          currentSentence += ' ' + trimmed;
-        } else {
-          // If we have accumulated content, add it first
-          if (currentSentence) {
-            improvedSentences.push(currentSentence.trim());
-            currentSentence = '';
-          }
-          currentSentence = trimmed;
-        }
-      }
-      
-      // Add the last sentence if any
-      if (currentSentence) {
-        improvedSentences.push(currentSentence.trim());
-      }
-      
-      sentences = improvedSentences;
-    }
-    
     // Group sentences into reasonable chunks (3-4 sentences per highlight)
     const sentencesPerChunk = 3;
     for (let i = 0; i < sentences.length; i += sentencesPerChunk) {
@@ -296,160 +254,6 @@ export const extractHighlights = (text: string): string[] => {
   }
   
   return highlights;
-};
-
-// Helper function to extract hierarchical structured sections
-const extractStructuredSections = (text: string): string[] => {
-  const sections: string[] = [];
-  
-  // Look for main sections with headers like "6 benefits of Bizlove"
-  const mainSectionPattern = /(\d+\s+benefits\s+of\s+\w+|\w+\s+benefits\s+of\s+\w+)([\s\S]*?)(?=(?:\d+\s+benefits\s+of\s+\w+|\w+\s+benefits\s+of\s+\w+)|$)/gi;
-  const mainSections = [...text.matchAll(mainSectionPattern)];
-  
-  if (mainSections.length > 0) {
-    for (const section of mainSections) {
-      const sectionHeader = section[1].trim();
-      const sectionContent = section[2].trim();
-      
-      // Add the complete section (header + content) as one highlight
-      const completeSection = `${sectionHeader}\n${sectionContent}`.trim();
-      sections.push(completeSection);
-    }
-  } else {
-    // If no clear section headers, try to extract standalone paragraphs
-    // that appear to be complete thoughts and not part of a list
-    const paragraphs = text.split(/\n\s*\n/).filter(Boolean);
-    
-    for (const paragraph of paragraphs) {
-      const trimmed = paragraph.trim();
-      
-      // Skip if it looks like a header or metadata
-      if (isMetadataOrTitle(trimmed) || trimmed.length < 50) {
-        continue;
-      }
-      
-      // If the paragraph doesn't start with a bullet or number, it's likely a standalone highlight
-      if (!trimmed.match(/^\s*(\d+\.|[a-z]\.|•|\*|-)\s/)) {
-        sections.push(trimmed);
-      }
-    }
-  }
-  
-  // Try another approach for numbered points that belong together
-  const numberedOutlinePattern = /(\d+)\.\s+(.*?)(?=\n\s*\d+\.\s+|$)/gs;
-  const numberedMatches = [...text.matchAll(numberedOutlinePattern)];
-  
-  // Check if we have consecutive numbered points (1, 2, 3...)
-  if (numberedMatches.length > 1) {
-    const numbers = numberedMatches.map(m => parseInt(m[1]));
-    const isSequential = numbers.every((num, idx) => 
-      idx === 0 || num === numbers[idx-1] + 1 || num === 1);
-    
-    if (isSequential) {
-      // Find where the whole numbered section starts and ends
-      const startPos = numberedMatches[0].index;
-      const lastMatch = numberedMatches[numberedMatches.length - 1];
-      const endPos = lastMatch ? (lastMatch.index || 0) + lastMatch[0].length : text.length;
-      
-      if (startPos !== undefined && startPos > 0) {
-        // Look for a potential header before the numbered section
-        const headerSearchText = text.substring(Math.max(0, startPos - 200), startPos).trim();
-        const headerMatch = headerSearchText.match(/([^\n.]+)$/);
-        
-        if (headerMatch) {
-          const header = headerMatch[1].trim();
-          const numberedSection = text.substring(startPos, endPos).trim();
-          sections.push(`${header}\n${numberedSection}`);
-        } else {
-          sections.push(text.substring(startPos, endPos).trim());
-        }
-      }
-    }
-  }
-  
-  return sections;
-};
-
-// Helper function to extract structured bullet points or numbered lists
-const extractStructuredPoints = (text: string): string[] => {
-  const points: string[] = [];
-  
-  // Check for numbered list (1., 2., etc.)
-  const numberedListMatch = text.match(/(\d+\.\s+.*?(?=\n\s*\d+\.\s+|\n\s*$|$))+/gs);
-  
-  if (numberedListMatch) {
-    // Found a numbered list, keep each group as a single highlight
-    for (const listSection of numberedListMatch) {
-      if (listSection.trim().length > 30) {
-        // Check if this numbered list has a header above it
-        const possibleHeaderMatch = text.match(new RegExp(`([^\n.]+)\n${escapeRegExp(listSection.substring(0, 20))}`));
-        
-        if (possibleHeaderMatch) {
-          points.push(`${possibleHeaderMatch[1].trim()}\n${listSection.trim()}`);
-        } else {
-          points.push(listSection.trim());
-        }
-      }
-    }
-  }
-  
-  // Check for hierarchical structure (1. a. b. c. 2. a. b...)
-  const hierarchicalMatch = text.match(/(\d+\.\s+.*?(?=\n\s*\d+\.\s+|\n\s*$|$))/gs);
-  
-  if (hierarchicalMatch) {
-    // Process each top-level item
-    for (let i = 0; i < hierarchicalMatch.length; i++) {
-      const currentItem = hierarchicalMatch[i].trim();
-      
-      // Get the number of this item (e.g., "1." from "1. Some text")
-      const currentNumberMatch = currentItem.match(/^(\d+)\./);
-      if (!currentNumberMatch) continue;
-      
-      const currentNumber = parseInt(currentNumberMatch[1]);
-      let fullSection = currentItem;
-      
-      // Look ahead to see if there are lettered sub-items (a., b., etc.)
-      // that should be included with this numbered item
-      const letterItemPattern = new RegExp(`\\n\\s*[a-z]\\.\s+.*?(?=\\n\\s*\\d+\\.\\s+|\\n\\s*[a-z]\\.\\s+|$)`, 'gs');
-      const letterMatches = [...text.matchAll(letterItemPattern)];
-      
-      if (letterMatches.length > 0) {
-        // Find the next numbered item
-        const nextNumberedItemIndex = i + 1 < hierarchicalMatch.length ? 
-          text.indexOf(hierarchicalMatch[i + 1]) : text.length;
-        
-        // Include all letter items until the next numbered item
-        for (const letterMatch of letterMatches) {
-          const letterMatchIndex = letterMatch.index || 0;
-          
-          // Check if this lettered item belongs to the current numbered item
-          // (i.e., it appears after the current numbered item but before the next one)
-          if (letterMatchIndex > text.indexOf(currentItem) && 
-              letterMatchIndex < nextNumberedItemIndex) {
-            fullSection += letterMatch[0];
-          }
-        }
-      }
-      
-      if (fullSection.trim().length > 30) {
-        points.push(fullSection.trim());
-      }
-    }
-  }
-  
-  // Check for bullet point lists (•, *, -)
-  const bulletPattern = /(?:^|\n)(\s*(?:•|\*|-)\s+.*?(?=\n\s*(?:•|\*|-)\s+|\n\s*$|$))+/gs;
-  const bulletMatches = text.match(bulletPattern);
-  
-  if (bulletMatches) {
-    for (const bulletSection of bulletMatches) {
-      if (bulletSection.trim().length > 30) {
-        points.push(bulletSection.trim());
-      }
-    }
-  }
-  
-  return points;
 };
 
 // Helper function to detect if text is metadata or title
@@ -472,13 +276,13 @@ const isMetadataOrTitle = (text: string): boolean => {
   return false;
 };
 
-// Escape special regex characters in a string
-const escapeRegExp = (string: string): string => {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
-
 // Function to detect the format of the PDF
 export const detectPDFFormat = (text: string): string | null => {
+  // Check for horizontal line separators
+  if (text.match(/\n\s*[-_=]{3,}\s*\n/g)) {
+    return "Horizontal Line Separated Format";
+  }
+  
   // Check for "X benefits of Y" pattern
   if (text.match(/\d+\s+benefits\s+of\s+\w+/i)) {
     return "Structured Document with Benefits Sections";
@@ -505,12 +309,7 @@ export const detectPDFFormat = (text: string): string | null => {
     return `${highlightCountMatch[1]} Highlights Document`;
   }
   
-  // Structured document with numbered sections and bullet points
-  if (text.match(/^\d+\.\s+.+?\n/m) || text.match(/^\s*•\s+.+?\n/m)) {
-    return "Structured Document with Bullet Points";
-  }
-  
-  // Check for bullet points with dash or asterisk
+  // Structured document with bullet points
   if (text.match(/(?:\n|\r\n?)\s*(?:•|\*|-|\d+\.)\s+/)) {
     return "Bullet Point Format";
   }
