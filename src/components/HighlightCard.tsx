@@ -5,7 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button';
 import { Trash, Heart, Edit } from 'lucide-react';
 import { toggleFavorite, deleteHighlight } from '@/utils/highlights';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
 interface HighlightCardProps {
@@ -40,6 +40,9 @@ const HighlightCard: React.FC<HighlightCardProps> = ({
     onDelete(highlight.id);
   };
 
+  // Check if this is an image highlight
+  const isImageHighlight = highlight.text.startsWith('[Image]') && highlight.imageData;
+
   return (
     <Card className="w-full overflow-hidden hover:shadow-md transition-shadow duration-200">
       <CardHeader className="p-4 pb-2 flex flex-row items-start justify-between space-y-0">
@@ -57,9 +60,19 @@ const HighlightCard: React.FC<HighlightCardProps> = ({
         </Button>
       </CardHeader>
       <CardContent className="p-4 pt-2">
-        <blockquote className="quote-text border-l-2 border-primary/50 pl-3 italic text-base">
-          {highlight.text}
-        </blockquote>
+        {isImageHighlight ? (
+          <div className="flex justify-center">
+            <img 
+              src={highlight.imageData} 
+              alt="Highlight Image" 
+              className="max-h-64 object-contain rounded-md"
+            />
+          </div>
+        ) : (
+          <blockquote className="quote-text border-l-2 border-primary/50 pl-3 italic text-base">
+            {highlight.text}
+          </blockquote>
+        )}
         <div className="mt-3 text-sm">
           <p className="text-muted-foreground">
             <span className="font-semibold text-foreground">{highlight.author}</span>

@@ -36,41 +36,34 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
 // Function to extract individual highlights from text
 export const extractHighlights = (text: string): string[] => {
   const highlights: string[] = [];
-  let detectedFormat: string | null = null;
   
   // Remove excessive whitespace while preserving paragraph breaks
   const cleanText = text.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
   
-  // First detect if this is a title/author document header (common in many formats)
-  // We'll look for patterns like "Title\nAuthor" at the beginning of the document
-  const titleAuthorPattern = /^(.{1,100})\n(.{1,50})\n/;
-  const headerMatch = text.match(titleAuthorPattern);
-  let contentStartIndex = 0;
-  
-  if (headerMatch) {
-    // Skip the title/author section for processing
-    contentStartIndex = headerMatch[0].length;
-    console.log("Detected title and author at start of document, skipping for highlight extraction");
-  }
+  // Skip title and author detection as requested by user
+  // Here we focus on detecting highlights separated by horizontal lines
 
-  // NEW: Check for horizontal line separators (e.g., "______" or "------" or "=====" or "-----")
-  // This is a strong indicator of highlights separation in the document
-  const horizontalLinePattern = /\n\s*[-_=]{3,}\s*\n/g;
+  // IMPROVED: Check for horizontal line separators 
+  // Look for different types of horizontal line markers like "______" or "------" or "=====" or "-----"
+  // Also look for more subtle line separators like "—" or "–" repeated, or single "_" or "-" lines
+  const horizontalLinePattern = /\n\s*[-_=–—]{3,}\s*\n|\n\s*[-_]\s*\n/g;
+  
+  // If we can split by horizontal lines, do it
   if (text.match(horizontalLinePattern)) {
     console.log("Detected horizontal line separators between highlights");
-    detectedFormat = "Horizontal Line Separated Format";
     
     // Split the content by horizontal lines
     const segments = text.split(horizontalLinePattern).map(s => s.trim()).filter(Boolean);
     
-    // Skip the first segment if it looks like metadata/title
+    // Skip the first segment if it looks like metadata/title (less than 100 characters and few lines)
     const startIndex = (segments[0].length < 100 && segments[0].split('\n').length <= 3) ? 1 : 0;
     
     // Add each segment as a highlight
     for (let i = startIndex; i < segments.length; i++) {
       const segment = segments[i].trim();
-      // Skip very short segments that might be just page numbers or headers
-      if (segment.length > 20) {
+      
+      // Skip very short segments that might be just page numbers or headers (at least 10 chars)
+      if (segment.length > 10) {
         highlights.push(segment);
       }
     }
@@ -81,13 +74,14 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
+  // If horizontal line detection didn't work, fall back to other detection methods
+  
   // Pattern 1: Kindle notes format with page numbers
   // Example: "Highlight (Yellow) | Page 30" followed by the highlight text
   const kindleHighlightPattern = /Highlight\s+\(\w+\)\s*\|\s*Page\s+\d+/gi;
   
   if (text.match(kindleHighlightPattern)) {
     console.log("Identified Kindle notes format with page numbers");
-    detectedFormat = "Kindle Notes (Page Format)";
     
     // Split by the highlight markers
     const segments = text.split(kindleHighlightPattern).filter(Boolean);
@@ -113,7 +107,6 @@ export const extractHighlights = (text: string): string[] => {
   // Pattern 2: Kindle highlight markers with locations
   const locationHighlightPattern = /Highlight\s+\((?:Yellow|Blue|Pink|Orange|Green)\)\s*\|\s*Location\s+\d+/gi;
   if (text.match(locationHighlightPattern)) {
-    detectedFormat = "Kindle Notes (Location Format)";
     const segments = text.split(locationHighlightPattern).filter(Boolean);
     // The first segment might be introductory text, not a highlight
     const startIndex = segments[0].includes("Kindle") || segments[0].length < 100 ? 1 : 0;
@@ -134,7 +127,6 @@ export const extractHighlights = (text: string): string[] => {
   
   if (highlightCountMatch) {
     console.log(`Detected ${highlightCountMatch[1]} highlights in document`);
-    detectedFormat = `${highlightCountMatch[1]} Highlights Document`;
     
     // If we found a header like "73 Highlights | Yellow (73)", 
     // look for patterns like "Highlight (Yellow) | Page X"
@@ -156,28 +148,19 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
 
-  // Pattern 4: Look for explicit numbered sections that should be treated as complete highlights
-  // This could be like "6 benefits of Bizlove" and its bullet points
-  const numberedSectionPattern = /(\d+\s+benefits\s+of\s+\w+|\w+\s+benefits\s+of\s+\w+)/i;
-  if (text.match(numberedSectionPattern)) {
-    // Instead of treating the entire section as one highlight,
-    // we'll treat it as individual highlights based on other separators
-    console.log("Detected 'benefits' section but will process using other patterns");
-  }
-
-  // Pattern 5: Simple paragraphs separated by blank lines
+  // Pattern 4: Look for explicit numbered sections
+  // Simple paragraphs separated by blank lines
   const paraPattern = /\n\s*\n/g; 
   const paragraphs = text.split(paraPattern).map(p => p.trim()).filter(Boolean);
   
   if (paragraphs.length > 1) {
-    detectedFormat = "Paragraph Format";
     let currentParagraph = "";
     
     for (let i = 0; i < paragraphs.length; i++) {
       const para = paragraphs[i].trim();
       
       // Skip very short paragraphs that might just be headers
-      if (para.length < 15 || isMetadataOrTitle(para)) {
+      if (para.length < 15) {
         continue;
       }
       
@@ -235,51 +218,13 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
-  // If nothing else worked, split by paragraph and try to identify complete sentences
-  if (highlights.length === 0) {
-    detectedFormat = "General Text Format";
-    
-    // First try to split by common sentence endings
-    const sentencePattern = /(?<=[.!?])\s+(?=[A-Z])/g;
-    let sentences = text.substring(contentStartIndex).split(sentencePattern).filter(Boolean);
-    
-    // Group sentences into reasonable chunks (3-4 sentences per highlight)
-    const sentencesPerChunk = 3;
-    for (let i = 0; i < sentences.length; i += sentencesPerChunk) {
-      const chunk = sentences.slice(i, i + sentencesPerChunk).join(' ');
-      if (chunk.trim().length > 20) {
-        highlights.push(chunk.trim());
-      }
-    }
-  }
-  
   return highlights;
-};
-
-// Helper function to detect if text is metadata or title
-const isMetadataOrTitle = (text: string): boolean => {
-  // Check if text is short and looks like a title/header
-  if (text.length < 40 && /^[A-Z][\w\s]+$/.test(text)) {
-    return true;
-  }
-  
-  // Check if text contains typical metadata like "Page X" or "Chapter Y"
-  if (text.match(/^(?:Page|Chapter|Section|Part)\s+\d+/i)) {
-    return true;
-  }
-  
-  // Check if text is a header like "Introduction" or "Conclusion"
-  if (text.match(/^(?:Introduction|Conclusion|Preface|Foreword|Acknowledgements|References|Bibliography|Index|Glossary|Appendix)$/i)) {
-    return true;
-  }
-  
-  return false;
 };
 
 // Function to detect the format of the PDF
 export const detectPDFFormat = (text: string): string | null => {
   // Check for horizontal line separators
-  if (text.match(/\n\s*[-_=]{3,}\s*\n/g)) {
+  if (text.match(/\n\s*[-_=–—]{3,}\s*\n|\n\s*[-_]\s*\n/g)) {
     return "Horizontal Line Separated Format";
   }
   
