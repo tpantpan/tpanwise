@@ -1,3 +1,4 @@
+
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Set the worker source for PDF.js
@@ -41,11 +42,37 @@ export const extractHighlights = (text: string): string[] => {
   const cleanText = text.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
   
   // Skip title and author detection as requested by user
-  // Here we focus on detecting highlights separated by horizontal lines
-
-  // IMPROVED: Check for horizontal line separators 
-  // Look for different types of horizontal line markers like "______" or "------" or "=====" or "-----"
-  // Also look for more subtle line separators like "—" or "–" repeated, or single "_" or "-" lines
+  
+  // ADDED: Check for "HIGHLIGHT" markers to separate individual highlights
+  const highlightMarkerPattern = /\bHIGHLIGHT\b/gi;
+  
+  if (text.match(highlightMarkerPattern)) {
+    console.log("Detected HIGHLIGHT markers between content sections");
+    
+    // Split the content by HIGHLIGHT markers
+    const segments = text.split(highlightMarkerPattern).map(s => s.trim()).filter(Boolean);
+    
+    // Skip the first segment if it looks like metadata/title (less than 100 characters and few lines)
+    // This helps avoid including document title/author information
+    const startIndex = (segments[0].length < 100 && segments[0].split('\n').length <= 3) ? 1 : 0;
+    
+    // Add each segment as a highlight
+    for (let i = startIndex; i < segments.length; i++) {
+      const segment = segments[i].trim();
+      
+      // Skip very short segments that might be just page numbers or headers (at least 10 chars)
+      if (segment.length > 10) {
+        highlights.push(segment);
+      }
+    }
+    
+    if (highlights.length > 0) {
+      console.log(`Found ${highlights.length} highlights using HIGHLIGHT markers`);
+      return highlights;
+    }
+  }
+  
+  // Check for horizontal line separators if HIGHLIGHT markers aren't found
   const horizontalLinePattern = /\n\s*[-_=–—]{3,}\s*\n|\n\s*[-_]\s*\n/g;
   
   // If we can split by horizontal lines, do it
@@ -56,6 +83,7 @@ export const extractHighlights = (text: string): string[] => {
     const segments = text.split(horizontalLinePattern).map(s => s.trim()).filter(Boolean);
     
     // Skip the first segment if it looks like metadata/title (less than 100 characters and few lines)
+    // Explicitly skipping title/author information at the top
     const startIndex = (segments[0].length < 100 && segments[0].split('\n').length <= 3) ? 1 : 0;
     
     // Add each segment as a highlight
@@ -223,6 +251,11 @@ export const extractHighlights = (text: string): string[] => {
 
 // Function to detect the format of the PDF
 export const detectPDFFormat = (text: string): string | null => {
+  // Check for HIGHLIGHT markers
+  if (text.match(/\bHIGHLIGHT\b/gi)) {
+    return "HIGHLIGHT Marker Format";
+  }
+  
   // Check for horizontal line separators
   if (text.match(/\n\s*[-_=–—]{3,}\s*\n|\n\s*[-_]\s*\n/g)) {
     return "Horizontal Line Separated Format";
