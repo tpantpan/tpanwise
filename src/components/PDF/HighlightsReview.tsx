@@ -29,21 +29,47 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
       text.match(/[ivxlcdm]+\.\s/) || 
       text.includes('•') || 
       text.includes('\n-') ||
-      text.match(/\n\s*\d+\./)
+      text.match(/\n\s*\d+\./) ||
+      text.match(/benefits\s+of\s+\w+/i)
     );
     
     if (hasStructure) {
       // For structured content, we want to preserve the formatting
-      return text.split('\n').map((line, i) => (
-        <React.Fragment key={i}>
-          {line}
-          {i < text.split('\n').length - 1 && <br />}
-        </React.Fragment>
-      ));
+      // Special handling for hierarchical content to show proper indentation
+      return text.split('\n').map((line, i) => {
+        // Add appropriate indentation for sub-items
+        const isSubItem = line.trim().match(/^\s*[a-z]\.\s/);
+        const isSubSubItem = line.trim().match(/^\s*[ivxlcdm]+\.\s/) || line.trim().match(/^\s*\d+\.\d+\.\s/);
+        
+        let className = '';
+        if (isSubItem) {
+          className = 'pl-4'; // First level indent
+        } else if (isSubSubItem) {
+          className = 'pl-8'; // Second level indent
+        }
+        
+        return (
+          <div key={i} className={className}>
+            {line}
+          </div>
+        );
+      });
     }
     
-    // For regular text, truncate if it's too long
-    return text.length > 150 ? `${text.substring(0, 150)}...` : text;
+    // For regular text, truncate if it's too long for display
+    if (text.length > 300) {
+      return (
+        <div>
+          {text.substring(0, 300)}
+          <span className="text-muted-foreground">...</span>
+          <span className="text-xs text-muted-foreground ml-1">
+            ({text.length} characters)
+          </span>
+        </div>
+      );
+    }
+    
+    return text;
   };
 
   return (
