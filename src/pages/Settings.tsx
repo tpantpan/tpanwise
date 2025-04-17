@@ -2,6 +2,7 @@
 import React from 'react';
 import Header from '@/components/Header';
 import EmailSettings from '@/components/EmailSettings';
+import EmailTester from '@/components/EmailTester';
 
 const Settings: React.FC = () => {
   return (
@@ -14,6 +15,8 @@ const Settings: React.FC = () => {
           
           <div className="max-w-xl mx-auto">
             <EmailSettings />
+            
+            <EmailTester />
             
             <div className="mt-12 p-4 border rounded-lg">
               <h2 className="text-xl font-semibold mb-2">About Sparkler</h2>

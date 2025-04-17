@@ -1,4 +1,3 @@
-
 import { Highlight, EmailFrequency, EmailSettings, RandomHighlightReturn } from '@/types/highlight';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -342,10 +341,10 @@ export const sendHighlightByEmail = async (email: string, highlightCount: number
   }
 };
 
-// Trigger the 3-hour scheduled email manually (for testing)
+// Trigger the scheduled email manually (for testing)
 export const triggerScheduledEmail = async (email: string): Promise<boolean> => {
   try {
-    console.log(`Triggering 3-hour scheduled email for: ${email}`);
+    console.log(`Triggering scheduled email for: ${email}`);
     
     const { data, error } = await supabase.functions.invoke('scheduled-highlight', {
       body: {
@@ -360,6 +359,12 @@ export const triggerScheduledEmail = async (email: string): Promise<boolean> => 
     }
     
     console.log('Scheduled email function response:', data);
+    
+    if (!data || data.error) {
+      console.error('Error in scheduled-highlight function response:', data?.error || 'Unknown error');
+      return false;
+    }
+    
     return true;
   } catch (error) {
     console.error('Error triggering scheduled email:', error);

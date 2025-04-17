@@ -32,24 +32,32 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    // Get all registered emails with enabled settings
-    const { activeEmail, currentDate } = await req.json();
+    console.log("Scheduled highlight function triggered");
+    
+    // Get active email from request body
+    const requestBody = await req.json().catch(() => ({}));
+    const { activeEmail, currentDate } = requestBody;
     
     if (!activeEmail) {
+      console.error("No active email provided in request body");
       throw new Error('No active email provided');
     }
     
-    console.log(`Executing 3-hour scheduled job for email: ${activeEmail}`);
+    console.log(`Executing scheduled job for email: ${activeEmail}`);
     console.log(`Current date from client: ${currentDate || 'Not provided'}`);
     
     // Get a random highlight
     const highlight = await getRandomHighlight();
     if (!highlight) {
+      console.error("No highlights available to send");
       throw new Error('No highlights available');
     }
+    
+    console.log("Random highlight selected:", highlight);
 
     // Send the email
     const emailResponse = await sendEmailWithHighlight(activeEmail, highlight, currentDate);
+    console.log("Email sent successfully:", emailResponse);
 
     return new Response(JSON.stringify({ success: true, data: emailResponse }), {
       status: 200,
@@ -75,9 +83,9 @@ async function getRandomHighlight(): Promise<Highlight | null> {
   // Here we would fetch from database in a real implementation
   // For now, we'll create a sample highlight
   return {
-    id: "sample-id",
-    text: "This is a scheduled highlight sent every 3 hours",
-    source: "Scheduled System",
+    id: "scheduled-highlight",
+    text: "This is a scheduled highlight sent automatically by the system.",
+    source: "Scheduled Delivery System",
     author: "Sparkler",
     category: "System",
     dateAdded: new Date(),
@@ -87,7 +95,13 @@ async function getRandomHighlight(): Promise<Highlight | null> {
 
 // Send an email with the highlight
 async function sendEmailWithHighlight(email: string, highlight: Highlight, currentDateString?: string) {
-  const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendApiKey) {
+    console.error("RESEND_API_KEY environment variable not set");
+    throw new Error("Email service configuration missing");
+  }
+
+  const resend = new Resend(resendApiKey);
   
   // Format the current date for the subject line
   const currentDate = currentDateString ? new Date(currentDateString) : new Date();
@@ -98,27 +112,37 @@ async function sendEmailWithHighlight(email: string, highlight: Highlight, curre
   const attribution = (author || source) ? `<p style="text-align: right; font-size: 14px; margin-top: 10px;">${author} ${source}</p>` : '';
   const category = highlight.category ? `<span style="color: #6c7693; font-size: 12px; text-transform: uppercase;">${highlight.category}</span>` : '';
 
-  return resend.emails.send({
-    from: "Sparkler 3-Hour Highlights <onboarding@resend.dev>",
-    to: [email],
-    subject: `Your 3-Hour Highlight: ${formattedDate}`,
-    html: `
-      <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
-        <h2 style="color: #374151; margin-bottom: 20px;">Your 3-Hour Sparkler Highlight</h2>
-        <div style="margin: 20px 0; padding: 20px; border-left: 4px solid #5b6cf9; background-color: #f9f9fb;">
-          ${category}
-          <p style="font-size: 18px; line-height: 1.6; color: #374151;">
-            "${highlight.text}"
+  console.log(`Sending scheduled email to: ${email}`);
+  
+  try {
+    const result = await resend.emails.send({
+      from: "Sparkler Scheduled Highlights <onboarding@resend.dev>",
+      to: [email],
+      subject: `Your Scheduled Highlight: ${formattedDate}`,
+      html: `
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+          <h2 style="color: #374151; margin-bottom: 20px;">Your Scheduled Sparkler Highlight</h2>
+          <div style="margin: 20px 0; padding: 20px; border-left: 4px solid #5b6cf9; background-color: #f9f9fb;">
+            ${category}
+            <p style="font-size: 18px; line-height: 1.6; color: #374151;">
+              "${highlight.text}"
+            </p>
+            ${attribution}
+          </div>
+          <p style="font-size: 14px; color: #6c7693;">
+            Sent from <a href="https://lovable.app" style="color: #5b6cf9; text-decoration: none;">Sparkler</a>, your personal highlights library.
           </p>
-          ${attribution}
+          <p style="font-size: 12px; color: #6c7693;">This is an automated scheduled highlight delivery.</p>
         </div>
-        <p style="font-size: 14px; color: #6c7693;">
-          Sent from <a href="https://lovable.app" style="color: #5b6cf9; text-decoration: none;">Sparkler</a>, your personal highlights library.
-        </p>
-        <p style="font-size: 12px; color: #6c7693;">This is an automated 3-hour scheduled highlight.</p>
-      </div>
-    `,
-  });
+      `,
+    });
+    
+    console.log("Email send response:", result);
+    return result;
+  } catch (error) {
+    console.error("Error sending email with Resend:", error);
+    throw error;
+  }
 }
 
 serve(handler);
