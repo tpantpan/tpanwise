@@ -1,4 +1,3 @@
-
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Set the worker source for PDF.js
@@ -72,31 +71,54 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
-  // NEW: Check for "Highlight (Yellow) | Page X" pattern
+  // Pattern for Kindle highlights: "Highlight (Yellow) | Page X"
   const highlightPagePattern = /Highlight\s*\(\w+\)\s*\|\s*Page\s+\d+/gi;
   
   if (text.match(highlightPagePattern)) {
     console.log("Detected 'Highlight (Yellow) | Page X' pattern");
     
-    // Split the content by the highlight page markers
+    // Instead of just splitting by the marker, we'll extract the text between markers
+    const matches = text.match(new RegExp(`(${highlightPagePattern.source})(.*?)(?=${highlightPagePattern.source}|$)`, 'gis'));
+    
+    if (matches && matches.length > 0) {
+      for (const match of matches) {
+        // Extract the actual highlight content by removing the marker text
+        const markerMatch = match.match(highlightPagePattern);
+        if (markerMatch && markerMatch[0]) {
+          // Remove the marker from the beginning of the text
+          const highlightContent = match.substring(markerMatch[0].length).trim();
+          
+          // Skip very short segments or empty content
+          if (highlightContent.length > 10) {
+            highlights.push(highlightContent);
+          }
+        }
+      }
+      
+      if (highlights.length > 0) {
+        console.log(`Found ${highlights.length} highlights using 'Highlight (Yellow) | Page X' pattern`);
+        return highlights;
+      }
+    }
+    
+    // Fallback to the original split method if the regex matching didn't work
     const segments = text.split(highlightPagePattern).map(s => s.trim()).filter(Boolean);
     
-    // Skip the first segment if it looks like metadata/title (less than 100 characters and few lines)
-    // This helps avoid including document title/author information
+    // Skip the first segment if it looks like metadata/title
     const startIndex = (segments[0].length < 100 && segments[0].split('\n').length <= 3) ? 1 : 0;
     
     // Add each segment as a highlight
     for (let i = startIndex; i < segments.length; i++) {
       const segment = segments[i].trim();
       
-      // Skip very short segments that might be just page numbers or headers (at least 10 chars)
+      // Skip very short segments
       if (segment.length > 10) {
         highlights.push(segment);
       }
     }
     
     if (highlights.length > 0) {
-      console.log(`Found ${highlights.length} highlights using 'Highlight (Yellow) | Page X' pattern`);
+      console.log(`Found ${highlights.length} highlights using split method for 'Highlight (Yellow) | Page X' pattern`);
       return highlights;
     }
   }
