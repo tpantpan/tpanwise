@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload } from 'lucide-react';
+import { Upload, Pencil, Check, X } from 'lucide-react';
 import { HighlightCandidate } from '@/utils/pdfExtractor';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 interface HighlightsReviewProps {
   highlights: HighlightCandidate[];
@@ -12,6 +13,7 @@ interface HighlightsReviewProps {
   onCancel: () => void;
   isUploading: boolean;
   formatType?: string | null;
+  updateHighlightText?: (index: number, text: string) => void;
 }
 
 const HighlightsReview: React.FC<HighlightsReviewProps> = ({
@@ -21,7 +23,27 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
   onCancel,
   isUploading,
   formatType,
+  updateHighlightText,
 }) => {
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editText, setEditText] = useState('');
+  
+  const handleStartEdit = (index: number, text: string) => {
+    setEditingIndex(index);
+    setEditText(text);
+  };
+  
+  const handleSaveEdit = (index: number) => {
+    if (updateHighlightText) {
+      updateHighlightText(index, editText);
+    }
+    setEditingIndex(null);
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingIndex(null);
+  };
+
   const formatHighlightText = (text: string) => {
     // Check if this is a structured highlight with bullet points or numbering
     const hasStructure = text.includes('\n') && (
@@ -62,7 +84,7 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
     }
     
     // For regular text, truncate if it's too long for display
-    if (text.length > 300) {
+    if (text.length > 300 && editingIndex === null) {
       return (
         <div>
           {text.substring(0, 300)}
@@ -83,6 +105,7 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
         <h3 className="text-lg font-medium">Found {highlights.length} highlights</h3>
         <p className="text-sm text-muted-foreground">
           We identified the following highlights from your PDF. Uncheck any items you don't want to save.
+          You can also edit each highlight by clicking the pencil icon.
           {formatType && <span className="block mt-1 font-medium">Format: {formatType}</span>}
         </p>
       </div>
@@ -99,11 +122,52 @@ const HighlightsReview: React.FC<HighlightsReviewProps> = ({
               onChange={() => toggleHighlight(index)}
               className="mt-1 shrink-0"
             />
-            <div className="whitespace-pre-line">
-              {formatHighlightText(item.text)}
-              {index < highlights.length - 1 && (
-                <div className="pt-2 opacity-50">
-                  <Separator className="mt-1" />
+            <div className="whitespace-pre-line flex-1">
+              {editingIndex === index ? (
+                <div className="space-y-2">
+                  <Textarea 
+                    value={editText} 
+                    onChange={(e) => setEditText(e.target.value)}
+                    className="min-h-[100px] w-full"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={handleCancelEdit}
+                      className="flex items-center gap-1"
+                    >
+                      <X className="h-3 w-3" /> Cancel
+                    </Button>
+                    <Button 
+                      size="sm"
+                      onClick={() => handleSaveEdit(index)}
+                      className="flex items-center gap-1"
+                    >
+                      <Check className="h-3 w-3" /> Save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="group flex-1">
+                  <div className="flex justify-between">
+                    <div className="flex-1">
+                      {formatHighlightText(item.text)}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => handleStartEdit(index, item.text)}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  {index < highlights.length - 1 && (
+                    <div className="pt-2 opacity-50">
+                      <Separator className="mt-1" />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

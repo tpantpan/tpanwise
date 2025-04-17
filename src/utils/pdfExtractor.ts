@@ -41,8 +41,6 @@ export const extractHighlights = (text: string): string[] => {
   // Remove excessive whitespace while preserving paragraph breaks
   const cleanText = text.replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
   
-  // Skip title and author detection as requested by user
-  
   // ADDED: Check for "HIGHLIGHT" markers to separate individual highlights
   const highlightMarkerPattern = /\bHIGHLIGHT\b/gi;
   
@@ -72,7 +70,7 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
-  // Pattern for Kindle highlights: "Highlight (Yellow) | Page X" or just "(Yellow) | Page X"
+  // Pattern for Kindle highlights: "(Yellow) | Page X" or "Highlight (Yellow) | Page X"
   const kindleFormatPattern = /(?:Highlight\s*)?\(\w+\)\s*\|\s*Page\s+\d+/gi;
   
   if (text.match(kindleFormatPattern)) {
@@ -90,8 +88,13 @@ export const extractHighlights = (text: string): string[] => {
     // Process the content segments (which follow the markers)
     for (let i = startIndex; i < segments.length; i++) {
       const content = segments[i].trim();
-      if (content.length > 15) { // Skip very short content
-        extractedHighlights.push(content);
+      // Skip very short content or empty strings
+      if (content.length > 15) {
+        // Make sure to remove any remaining Kindle marker text that might be at the beginning
+        const cleanedContent = content.replace(/^\s*(?:\(\w+\)\s*\|\s*Page\s+\d+\s*)+/gi, '').trim();
+        if (cleanedContent.length > 15) {
+          extractedHighlights.push(cleanedContent);
+        }
       }
     }
     
@@ -112,8 +115,11 @@ export const extractHighlights = (text: string): string[] => {
           // Extract content by removing the marker
           const content = match.substring(markerMatch[0].length).trim();
           
-          if (content.length > 15) { // Skip very short content
-            extractedHighlights.push(content);
+          // Further clean the content to ensure no marker text remains
+          const cleanedContent = content.replace(/^\s*(?:\(\w+\)\s*\|\s*Page\s+\d+\s*)+/gi, '').trim();
+          
+          if (cleanedContent.length > 15) { // Skip very short content
+            extractedHighlights.push(cleanedContent);
           }
         }
       }

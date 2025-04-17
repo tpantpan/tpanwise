@@ -93,6 +93,15 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
     );
   };
 
+  // Update text of a highlight during editing
+  const updateHighlightText = (index: number, newText: string) => {
+    setExtractedText(prev => 
+      prev.map((item, i) => 
+        i === index ? { ...item, text: newText } : item
+      )
+    );
+  };
+
   // Save highlights to storage
   const saveHighlights = async () => {
     const selectedHighlights = extractedText.filter(item => item.selected);
@@ -177,6 +186,7 @@ const PDFUploader: React.FC<PDFUploaderProps> = ({ onSuccess }) => {
         <HighlightsReview
           highlights={extractedText}
           toggleHighlight={toggleHighlightSelection}
+          updateHighlightText={updateHighlightText}
           onSave={saveHighlights}
           onCancel={cancelHighlightsReview}
           isUploading={isUploading}
