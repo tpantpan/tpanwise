@@ -1,3 +1,4 @@
+
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Set the worker source for PDF.js
@@ -71,55 +72,56 @@ export const extractHighlights = (text: string): string[] => {
     }
   }
   
-  // Pattern for Kindle highlights: "Highlight (Yellow) | Page X"
-  const highlightPagePattern = /Highlight\s*\(\w+\)\s*\|\s*Page\s+\d+/gi;
+  // Pattern for Kindle highlights: "Highlight (Yellow) | Page X" or just "(Yellow) | Page X"
+  const kindleFormatPattern = /(?:Highlight\s*)?\(\w+\)\s*\|\s*Page\s+\d+/gi;
   
-  if (text.match(highlightPagePattern)) {
-    console.log("Detected 'Highlight (Yellow) | Page X' pattern");
+  if (text.match(kindleFormatPattern)) {
+    console.log("Detected Kindle highlight format");
     
-    // Instead of just splitting by the marker, we'll extract the text between markers
-    const matches = text.match(new RegExp(`(${highlightPagePattern.source})(.*?)(?=${highlightPagePattern.source}|$)`, 'gis'));
+    // Extract highlights by finding content between Kindle format markers
+    const extractedHighlights: string[] = [];
     
-    if (matches && matches.length > 0) {
-      for (const match of matches) {
-        // Extract the actual highlight content by removing the marker text
-        const markerMatch = match.match(highlightPagePattern);
-        if (markerMatch && markerMatch[0]) {
-          // Remove the marker from the beginning of the text
-          const highlightContent = match.substring(markerMatch[0].length).trim();
-          
-          // Skip very short segments or empty content
-          if (highlightContent.length > 10) {
-            highlights.push(highlightContent);
-          }
-        }
-      }
-      
-      if (highlights.length > 0) {
-        console.log(`Found ${highlights.length} highlights using 'Highlight (Yellow) | Page X' pattern`);
-        return highlights;
-      }
-    }
-    
-    // Fallback to the original split method if the regex matching didn't work
-    const segments = text.split(highlightPagePattern).map(s => s.trim()).filter(Boolean);
+    // Split the text by the Kindle format markers
+    const segments = text.split(kindleFormatPattern);
     
     // Skip the first segment if it looks like metadata/title
     const startIndex = (segments[0].length < 100 && segments[0].split('\n').length <= 3) ? 1 : 0;
     
-    // Add each segment as a highlight
+    // Process the content segments (which follow the markers)
     for (let i = startIndex; i < segments.length; i++) {
-      const segment = segments[i].trim();
-      
-      // Skip very short segments
-      if (segment.length > 10) {
-        highlights.push(segment);
+      const content = segments[i].trim();
+      if (content.length > 15) { // Skip very short content
+        extractedHighlights.push(content);
       }
     }
     
-    if (highlights.length > 0) {
-      console.log(`Found ${highlights.length} highlights using split method for 'Highlight (Yellow) | Page X' pattern`);
-      return highlights;
+    if (extractedHighlights.length > 0) {
+      console.log(`Found ${extractedHighlights.length} highlights using Kindle format pattern`);
+      return extractedHighlights;
+    }
+    
+    // Alternative approach: match each highlight with its marker
+    const matches = text.match(new RegExp(`(${kindleFormatPattern.source})([\\s\\S]*?)(?=${kindleFormatPattern.source}|$)`, 'gi'));
+    
+    if (matches && matches.length > 0) {
+      for (const match of matches) {
+        // Find the Kindle marker in this match
+        const markerMatch = match.match(kindleFormatPattern);
+        
+        if (markerMatch && markerMatch[0]) {
+          // Extract content by removing the marker
+          const content = match.substring(markerMatch[0].length).trim();
+          
+          if (content.length > 15) { // Skip very short content
+            extractedHighlights.push(content);
+          }
+        }
+      }
+      
+      if (extractedHighlights.length > 0) {
+        console.log(`Found ${extractedHighlights.length} highlights using Kindle format regex matching`);
+        return extractedHighlights;
+      }
     }
   }
   
@@ -307,8 +309,8 @@ export const detectPDFFormat = (text: string): string | null => {
     return "HIGHLIGHT Marker Format";
   }
   
-  // NEW: Check for "Highlight (Yellow) | Page X" pattern
-  if (text.match(/Highlight\s*\(\w+\)\s*\|\s*Page\s+\d+/gi)) {
+  // Check for Kindle highlight pattern "(Yellow) | Page X" or "Highlight (Yellow) | Page X"
+  if (text.match(/(?:Highlight\s*)?\(\w+\)\s*\|\s*Page\s+\d+/gi)) {
     return "Kindle Highlights Format";
   }
   
