@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 
@@ -104,8 +103,8 @@ async function sendEmailWithHighlight(email: string, highlight: Highlight, curre
   const resend = new Resend(resendApiKey);
   
   // Format the current date for the subject line
-  const currentDate = currentDateString ? new Date(currentDateString) : new Date();
-  const formattedDate = `${currentDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${currentDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+  const currentDateObj = currentDateString ? new Date(currentDateString) : new Date();
+  const formattedDate = formatDateInTimeZone(currentDateObj);
   
   const source = highlight.source ? `<em>${highlight.source}</em>` : '';
   const author = highlight.author ? `<strong>${highlight.author}</strong>` : '';
@@ -144,5 +143,19 @@ async function sendEmailWithHighlight(email: string, highlight: Highlight, curre
     throw error;
   }
 }
+
+// Function to format date in a specific time zone
+const formatDateInTimeZone = (date: Date, timeZone: string = 'America/Los_Angeles') => {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone,
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  };
+  return new Intl.DateTimeFormat('en-US', options).format(date);
+};
 
 serve(handler);

@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 
@@ -49,14 +48,24 @@ const handler = async (req: Request): Promise<Response> => {
       console.log(`Scheduled for daily delivery at: ${deliveryTime}`);
     }
 
-    // Format the current date for the subject line
+    const formatDateInTimeZone = (date: Date, timeZone: string = 'America/Los_Angeles') => {
+      const options: Intl.DateTimeFormatOptions = {
+        timeZone,
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      };
+      return new Intl.DateTimeFormat('en-US', options).format(date);
+    };
+
     const currentDateObj = currentDate ? new Date(currentDate) : new Date();
-    const formattedDate = `${currentDateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+    const formattedDate = formatDateInTimeZone(currentDateObj);
     
-    // Process highlights (single or multiple)
     const highlightsArray = Array.isArray(highlight) ? highlight : [highlight];
     
-    // Create HTML content for all highlights
     let highlightsHtml = '';
     
     highlightsArray.forEach((item, index) => {
@@ -75,7 +84,6 @@ const handler = async (req: Request): Promise<Response> => {
         </div>
       `;
       
-      // Add a separator between highlights, except for the last one
       if (index < highlightsArray.length - 1) {
         highlightsHtml += '<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">';
       }
