@@ -1,5 +1,5 @@
 import { parse, format } from 'date-fns';
-import { utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 import { Highlight, EmailFrequency, EmailSettings, RandomHighlightReturn } from '@/types/highlight';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,8 +12,8 @@ export const getNextScheduledDate = (settings: EmailSettings): Date | null => {
   
   const now = new Date();
   const pacificTimezone = 'America/Los_Angeles';
-  const nowInPacificTime = utcToZonedTime(now, pacificTimezone);
-  const lastSent = settings.lastSent ? utcToZonedTime(settings.lastSent, pacificTimezone) : nowInPacificTime;
+  const nowInPacificTime = toZonedTime(now, pacificTimezone);
+  const lastSent = settings.lastSent ? toZonedTime(settings.lastSent, pacificTimezone) : nowInPacificTime;
   
   const nextDate = new Date(lastSent);
   
@@ -39,7 +39,7 @@ export const getNextScheduledDate = (settings: EmailSettings): Date | null => {
   }
   
   // Convert back to UTC for storage and function calls
-  const nextDateInUtc = zonedTimeToUtc(nextDate, pacificTimezone);
+  const nextDateInUtc = fromZonedTime(nextDate, pacificTimezone);
   
   return nextDateInUtc;
 };
