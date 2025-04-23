@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +18,6 @@ const EmailTester: React.FC = () => {
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [resendLimitationAlert, setResendLimitationAlert] = useState(false);
   
-  // Load the email from settings when component mounts
   useEffect(() => {
     const loadEmailFromSettings = async () => {
       const settings = await loadEmailSettings();
@@ -60,7 +58,6 @@ const EmailTester: React.FC = () => {
     } catch (error: any) {
       console.error('Error sending test:', error);
       
-      // Check if this is a Resend limitation error
       if (error.resendError) {
         setResendLimitationAlert(true);
         toast({
@@ -109,7 +106,6 @@ const EmailTester: React.FC = () => {
     } catch (error: any) {
       console.error('Error sending test:', error);
       
-      // Check if this is a Resend limitation error
       if (error.resendError) {
         setResendLimitationAlert(true);
         toast({
@@ -177,7 +173,7 @@ const EmailTester: React.FC = () => {
       </CardHeader>
       <CardContent className="space-y-4">
         {resendLimitationAlert && (
-          <Alert variant="warning" className="mb-4">
+          <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Resend Free Tier Limitation</AlertTitle>
             <AlertDescription>
