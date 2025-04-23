@@ -262,6 +262,7 @@ export const loadEmailSettings = async (): Promise<EmailSettings> => {
 // Save email settings
 export const saveEmailSettings = async (settings: EmailSettings): Promise<boolean> => {
   try {
+    console.log('Saving email settings:', settings);
     localStorage.setItem(EMAIL_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
     return true;
   } catch (error) {
@@ -274,13 +275,18 @@ export const saveEmailSettings = async (settings: EmailSettings): Promise<boolea
 export const checkAndSendScheduledEmail = async (): Promise<boolean> => {
   try {
     const settings = await loadEmailSettings();
+    console.log('Checking if email needs to be sent, settings:', settings);
     
     if (!settings.enabled || !settings.email) {
+      console.log('Email delivery not enabled or no email address set');
       return false;
     }
     
     const nextScheduledDate = getNextScheduledDate(settings);
     const now = new Date();
+    
+    console.log('Next scheduled date:', nextScheduledDate);
+    console.log('Current time:', now);
     
     // If the next scheduled date is in the past, send the email
     if (nextScheduledDate && nextScheduledDate <= now) {
@@ -291,8 +297,13 @@ export const checkAndSendScheduledEmail = async (): Promise<boolean> => {
         // Update the last sent date to now
         settings.lastSent = now;
         await saveEmailSettings(settings);
+        console.log('Email sent successfully and settings updated');
         return true;
+      } else {
+        console.log('Failed to send scheduled email');
       }
+    } else {
+      console.log('Not time to send email yet');
     }
     
     return false;
@@ -356,7 +367,8 @@ export const triggerScheduledEmail = async (email: string): Promise<boolean> => 
     const { data, error } = await supabase.functions.invoke('scheduled-highlight', {
       body: {
         activeEmail: email,
-        currentDate: new Date().toISOString() // Include current date for debugging
+        currentDate: new Date().toISOString(), // Include current date for debugging
+        isTest: true
       }
     });
     
@@ -369,6 +381,12 @@ export const triggerScheduledEmail = async (email: string): Promise<boolean> => 
     
     if (!data || data.error) {
       console.error('Error in scheduled-highlight function response:', data?.error || 'Unknown error');
+      return false;
+    }
+    
+    // Verify that the email was actually sent
+    if (data.emailSent === false) {
+      console.error('Email sending failed according to function response');
       return false;
     }
     

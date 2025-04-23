@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 
@@ -35,7 +36,7 @@ const handler = async (req: Request): Promise<Response> => {
     
     // Get active email from request body
     const requestBody = await req.json().catch(() => ({}));
-    const { activeEmail, currentDate } = requestBody;
+    const { activeEmail, currentDate, isTest = false } = requestBody;
     
     if (!activeEmail) {
       console.error("No active email provided in request body");
@@ -44,6 +45,7 @@ const handler = async (req: Request): Promise<Response> => {
     
     console.log(`Executing scheduled job for email: ${activeEmail}`);
     console.log(`Current date from client: ${currentDate || 'Not provided'}`);
+    console.log(`Is test run: ${isTest}`);
     
     // Get a random highlight
     const highlight = await getRandomHighlight();
@@ -58,7 +60,7 @@ const handler = async (req: Request): Promise<Response> => {
     const emailResponse = await sendEmailWithHighlight(activeEmail, highlight, currentDate);
     console.log("Email sent successfully:", emailResponse);
 
-    return new Response(JSON.stringify({ success: true, data: emailResponse }), {
+    return new Response(JSON.stringify({ success: true, data: emailResponse, emailSent: true }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
@@ -68,7 +70,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error in scheduled highlight function:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: error.message, emailSent: false }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -131,7 +133,11 @@ async function sendEmailWithHighlight(email: string, highlight: Highlight, curre
           <p style="font-size: 14px; color: #6c7693;">
             Sent from <a href="https://lovable.app" style="color: #5b6cf9; text-decoration: none;">Sparkler</a>, your personal highlights library.
           </p>
-          <p style="font-size: 12px; color: #6c7693;">This is an automated scheduled highlight delivery.</p>
+          <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+            <p style="font-size: 12px; color: #6c7693;">This is an automated scheduled highlight delivery.</p>
+            <p style="font-size: 12px; color: #6c7693;">Delivery time (Pacific): ${formattedDate}</p>
+            <p style="font-size: 12px; color: #6c7693;">DEBUG: Email address: ${email}</p>
+          </div>
         </div>
       `,
     });
