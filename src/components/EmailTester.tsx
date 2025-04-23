@@ -3,10 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { triggerScheduledEmail, sendHighlightByEmail, checkAndSendScheduledEmail, loadEmailSettings } from '@/utils/highlights';
 import { useToast } from '@/components/ui/use-toast';
-import { Mail, RefreshCw, Clock, AlertTriangle } from 'lucide-react';
+import { Mail, RefreshCw, Clock, AlertTriangle, Info } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const EmailTester: React.FC = () => {
   const { toast } = useToast();
@@ -15,6 +17,7 @@ const EmailTester: React.FC = () => {
   const [isCheckingSchedule, setIsCheckingSchedule] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [resendLimitationAlert, setResendLimitationAlert] = useState(false);
   
   // Load the email from settings when component mounts
   useEffect(() => {
@@ -54,13 +57,24 @@ const EmailTester: React.FC = () => {
           variant: "destructive"
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending test:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred while sending the test.",
-        variant: "destructive"
-      });
+      
+      // Check if this is a Resend limitation error
+      if (error.resendError) {
+        setResendLimitationAlert(true);
+        toast({
+          title: "Resend Free Tier Limitation",
+          description: "You can only send test emails to your Resend account email. Try using t@tpan.xyz instead.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred while sending the test.",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsSending(false);
     }
@@ -92,13 +106,24 @@ const EmailTester: React.FC = () => {
           variant: "destructive"
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending test:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred while sending the test.",
-        variant: "destructive"
-      });
+      
+      // Check if this is a Resend limitation error
+      if (error.resendError) {
+        setResendLimitationAlert(true);
+        toast({
+          title: "Resend Free Tier Limitation",
+          description: "You can only send test emails to your Resend account email. Try using t@tpan.xyz instead.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred while sending the test.",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsSending(false);
     }
@@ -151,12 +176,28 @@ const EmailTester: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {resendLimitationAlert && (
+          <Alert variant="warning" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Resend Free Tier Limitation</AlertTitle>
+            <AlertDescription>
+              With Resend's free tier, you can only send emails to the email address linked to your Resend account (appears to be t@tpan.xyz).
+              To send emails to other addresses like thomaskypan@gmail.com, you need to verify a domain in your Resend account.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <div className="space-y-2">
           <Input
             placeholder="Enter your email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
+          {email === 't@tpan.xyz' && (
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              <Info className="h-3 w-3 mr-1" /> This email should work with Resend
+            </Badge>
+          )}
         </div>
         
         <div className="flex flex-wrap gap-2">
@@ -219,10 +260,19 @@ const EmailTester: React.FC = () => {
           </Accordion>
         )}
       </CardContent>
-      <CardFooter className="flex justify-center border-t pt-4">
+      <CardFooter className="flex flex-col justify-center border-t pt-4 gap-2">
         <p className="text-xs text-muted-foreground">
           If scheduled emails aren't arriving, try checking your spam folder or trying a different email address.
         </p>
+        <div className="text-xs text-muted-foreground p-2 bg-slate-50 rounded-md">
+          <p className="font-medium">Troubleshooting Tips:</p>
+          <ul className="list-disc pl-4 mt-1">
+            <li>Use t@tpan.xyz for testing while on Resend's free tier</li>
+            <li>To use other email addresses, verify a domain on <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">resend.com/domains</a></li>
+            <li>Check both inbox and spam folders</li>
+            <li>Ensure your email settings have the correct delivery time</li>
+          </ul>
+        </div>
       </CardFooter>
     </Card>
   );

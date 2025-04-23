@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 
@@ -57,16 +56,39 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Random highlight selected:", highlight);
 
     // Send the email
-    const emailResponse = await sendEmailWithHighlight(activeEmail, highlight, currentDate);
-    console.log("Email sent successfully:", emailResponse);
-
-    return new Response(JSON.stringify({ success: true, data: emailResponse, emailSent: true }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
-    });
+    try {
+      const emailResponse = await sendEmailWithHighlight(activeEmail, highlight, currentDate);
+      console.log("Email sent successfully:", emailResponse);
+      
+      return new Response(JSON.stringify({ success: true, data: emailResponse, emailSent: true }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      });
+    } catch (emailError: any) {
+      // Check if this is a Resend permission error
+      if (emailError.message?.includes('can only send testing emails to your own email address')) {
+        console.warn("Resend free tier limitation:", emailError.message);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Resend free tier limitation: You can only send test emails to the email address used to create your Resend account. Please verify a domain or use that email address.", 
+            resendError: true,
+            emailSent: false 
+          }),
+          {
+            status: 403,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+      
+      // Other email error
+      throw emailError;
+    }
   } catch (error: any) {
     console.error("Error in scheduled highlight function:", error);
     return new Response(

@@ -1,3 +1,4 @@
+
 import { parse, format } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
@@ -291,16 +292,27 @@ export const checkAndSendScheduledEmail = async (): Promise<boolean> => {
     // If the next scheduled date is in the past, send the email
     if (nextScheduledDate && nextScheduledDate <= now) {
       console.log('Scheduled time has passed, sending email now');
-      const sent = await sendHighlightByEmail(settings.email, settings.highlightCount || 1);
       
-      if (sent) {
-        // Update the last sent date to now
-        settings.lastSent = now;
-        await saveEmailSettings(settings);
-        console.log('Email sent successfully and settings updated');
-        return true;
-      } else {
-        console.log('Failed to send scheduled email');
+      try {
+        const sent = await sendHighlightByEmail(settings.email, settings.highlightCount || 1);
+        
+        if (sent) {
+          // Update the last sent date to now
+          settings.lastSent = now;
+          await saveEmailSettings(settings);
+          console.log('Email sent successfully and settings updated');
+          return true;
+        } else {
+          console.log('Failed to send scheduled email');
+        }
+      } catch (error: any) {
+        // Check if this is a Resend limitation error
+        if (error.resendError) {
+          console.warn("Resend free tier limitation triggered when sending scheduled email");
+          // Don't update the last sent date so it will try again later
+        } else {
+          throw error;
+        }
       }
     } else {
       console.log('Not time to send email yet');
@@ -348,6 +360,11 @@ export const sendHighlightByEmail = async (email: string, highlightCount: number
     
     console.log('Email function response:', data);
     
+    // Check for Resend limitation error
+    if (data && !data.success && data.resendError) {
+      throw { resendError: true, message: data.error };
+    }
+    
     // Update last sent time in settings
     settings.lastSent = new Date();
     await saveEmailSettings(settings);
@@ -355,7 +372,7 @@ export const sendHighlightByEmail = async (email: string, highlightCount: number
     return true;
   } catch (error) {
     console.error('Error sending highlight by email:', error);
-    return false;
+    throw error; // Re-throw to allow proper handling in UI
   }
 };
 
@@ -380,6 +397,11 @@ export const triggerScheduledEmail = async (email: string): Promise<boolean> => 
     console.log('Scheduled email function response:', data);
     
     if (!data || data.error) {
+      // Check for Resend limitation error
+      if (data && !data.success && data.resendError) {
+        throw { resendError: true, message: data.error };
+      }
+      
       console.error('Error in scheduled-highlight function response:', data?.error || 'Unknown error');
       return false;
     }
@@ -393,6 +415,6 @@ export const triggerScheduledEmail = async (email: string): Promise<boolean> => 
     return true;
   } catch (error) {
     console.error('Error triggering scheduled email:', error);
-    return false;
+    throw error; // Re-throw to allow proper handling in UI
   }
 };

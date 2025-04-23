@@ -1,8 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -89,31 +87,55 @@ const handler = async (req: Request): Promise<Response> => {
       }
     });
 
-    const emailResponse = await resend.emails.send({
-      from: "Sparkler Highlights <onboarding@resend.dev>",
-      to: [email],
-      subject: `Your Highlights for ${formattedDate}`,
-      html: `
-        <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
-          <h2 style="color: #374151; margin-bottom: 20px;">Your Sparkler Highlights</h2>
-          ${highlightsHtml}
-          <p style="font-size: 14px; color: #6c7693;">
-            Sent from <a href="https://lovable.app" style="color: #5b6cf9; text-decoration: none;">Sparkler</a>, your personal highlights library.
-          </p>
-          ${deliveryTime ? `<p style="font-size: 12px; color: #6c7693;">Scheduled delivery time: ${deliveryTime}</p>` : ''}
-        </div>
-      `,
-    });
+    const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-    console.log("Email sent successfully:", emailResponse);
+    try {
+      const emailResponse = await resend.emails.send({
+        from: "Sparkler Highlights <onboarding@resend.dev>",
+        to: [email],
+        subject: `Your Highlights for ${formattedDate}`,
+        html: `
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+            <h2 style="color: #374151; margin-bottom: 20px;">Your Sparkler Highlights</h2>
+            ${highlightsHtml}
+            <p style="font-size: 14px; color: #6c7693;">
+              Sent from <a href="https://lovable.app" style="color: #5b6cf9; text-decoration: none;">Sparkler</a>, your personal highlights library.
+            </p>
+            ${deliveryTime ? `<p style="font-size: 12px; color: #6c7693;">Scheduled delivery time: ${deliveryTime}</p>` : ''}
+          </div>
+        `,
+      });
 
-    return new Response(JSON.stringify({ success: true, data: emailResponse }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders,
-      },
-    });
+      console.log("Email sent successfully:", emailResponse);
+
+      return new Response(JSON.stringify({ success: true, data: emailResponse }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders,
+        },
+      });
+    } catch (emailError: any) {
+      // Check if this is a Resend permission error
+      if (emailError.message?.includes('can only send testing emails to your own email address')) {
+        console.warn("Resend free tier limitation:", emailError.message);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: "Resend free tier limitation: You can only send test emails to the email address used to create your Resend account. Please verify a domain or use that email address.", 
+            resendError: true 
+          }),
+          {
+            status: 403,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+      
+      // Other email error
+      throw emailError;
+    }
   } catch (error: any) {
     console.error("Error in send-highlight function:", error);
     return new Response(
