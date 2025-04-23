@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,12 +18,20 @@ const EmailTester: React.FC = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [resendLimitationAlert, setResendLimitationAlert] = useState(false);
+  const [scheduledInfo, setScheduledInfo] = useState<string | null>(null);
   
   useEffect(() => {
     const loadEmailFromSettings = async () => {
       const settings = await loadEmailSettings();
       if (settings.email) {
         setEmail(settings.email);
+      }
+      
+      // Check if scheduled emails would go to t@tpan.xyz
+      if (settings.enabled && settings.email && settings.email !== 't@tpan.xyz') {
+        setScheduledInfo("Note: With Resend's free tier, scheduled emails will be sent to t@tpan.xyz instead of the email in settings.");
+      } else {
+        setScheduledInfo(null);
       }
     };
     
@@ -142,15 +151,23 @@ const EmailTester: React.FC = () => {
       setDebugInfo({
         settings,
         shouldSendNow: shouldSend,
-        currentTime: new Date().toISOString()
+        currentTime: new Date().toISOString(),
+        scheduledRecipient: shouldSend ? 't@tpan.xyz' : null, // Always use t@tpan.xyz for scheduled emails
       });
       
       toast({
         title: shouldSend ? "Email was sent!" : "No email needed at this time",
         description: shouldSend ? 
-          "The system detected it's time to send an email and has done so." : 
+          "The system detected it's time to send an email and has done so to t@tpan.xyz." : 
           "Based on your schedule, it's not time to send an email yet.",
       });
+      
+      // Update scheduled info
+      if (settings.enabled && settings.email && settings.email !== 't@tpan.xyz') {
+        setScheduledInfo("Note: With Resend's free tier, scheduled emails will be sent to t@tpan.xyz instead of the email in settings.");
+      } else {
+        setScheduledInfo(null);
+      }
     } catch (error) {
       console.error('Error checking schedule:', error);
       toast({
@@ -179,6 +196,16 @@ const EmailTester: React.FC = () => {
             <AlertDescription>
               With Resend's free tier, you can only send emails to the email address linked to your Resend account (appears to be t@tpan.xyz).
               To send emails to other addresses like thomaskypan@gmail.com, you need to verify a domain in your Resend account.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {scheduledInfo && (
+          <Alert className="mb-4">
+            <Info className="h-4 w-4" />
+            <AlertTitle>About Scheduled Emails</AlertTitle>
+            <AlertDescription>
+              {scheduledInfo}
             </AlertDescription>
           </Alert>
         )}
@@ -267,6 +294,7 @@ const EmailTester: React.FC = () => {
             <li>To use other email addresses, verify a domain on <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">resend.com/domains</a></li>
             <li>Check both inbox and spam folders</li>
             <li>Ensure your email settings have the correct delivery time</li>
+            <li>All scheduled emails on the free tier will be sent to t@tpan.xyz regardless of email settings</li>
           </ul>
         </div>
       </CardFooter>

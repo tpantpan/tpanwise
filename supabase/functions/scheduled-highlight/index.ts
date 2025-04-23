@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
 
@@ -24,6 +25,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Default free tier email for Resend
+const FREE_TIER_EMAIL = "t@tpan.xyz";
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -35,11 +39,18 @@ const handler = async (req: Request): Promise<Response> => {
     
     // Get active email from request body
     const requestBody = await req.json().catch(() => ({}));
-    const { activeEmail, currentDate, isTest = false } = requestBody;
+    let { activeEmail, currentDate, isTest = false } = requestBody;
     
     if (!activeEmail) {
       console.error("No active email provided in request body");
       throw new Error('No active email provided');
+    }
+    
+    // For scheduled non-test emails, override with FREE_TIER_EMAIL if not running a test
+    // This ensures scheduled emails use the valid Resend account email
+    if (!isTest && activeEmail !== FREE_TIER_EMAIL) {
+      console.log(`Non-test scheduled email: Overriding email ${activeEmail} with ${FREE_TIER_EMAIL} for Resend compatibility`);
+      activeEmail = FREE_TIER_EMAIL;
     }
     
     console.log(`Executing scheduled job for email: ${activeEmail}`);
@@ -75,7 +86,7 @@ const handler = async (req: Request): Promise<Response> => {
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: "Resend free tier limitation: You can only send test emails to the email address used to create your Resend account. Please verify a domain or use that email address.", 
+            error: `Resend free tier limitation: You can only send test emails to ${FREE_TIER_EMAIL}. Please verify a domain or use that email address.`, 
             resendError: true,
             emailSent: false 
           }),

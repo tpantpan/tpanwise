@@ -293,14 +293,19 @@ export const checkAndSendScheduledEmail = async (): Promise<boolean> => {
     if (nextScheduledDate && nextScheduledDate <= now) {
       console.log('Scheduled time has passed, sending email now');
       
+      // Resend free tier email - always use this for scheduled emails
+      const resendFreeEmail = 't@tpan.xyz';
+      
       try {
-        const sent = await sendHighlightByEmail(settings.email, settings.highlightCount || 1);
+        // Always use the Resend free tier email for scheduled sends
+        // to avoid the Resend limitation error
+        const sent = await sendHighlightByEmail(resendFreeEmail, settings.highlightCount || 1);
         
         if (sent) {
           // Update the last sent date to now
           settings.lastSent = now;
           await saveEmailSettings(settings);
-          console.log('Email sent successfully and settings updated');
+          console.log('Email sent successfully to free tier email and settings updated');
           return true;
         } else {
           console.log('Failed to send scheduled email');
