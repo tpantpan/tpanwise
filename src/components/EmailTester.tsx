@@ -1,14 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import EmailTestForm from './email-test/EmailTestForm';
+import ResendLimitationAlert from './email-test/ResendLimitationAlert';
+import ScheduledInfoAlert from './email-test/ScheduledInfoAlert';
+import ScheduledEmailChecker from './email-test/ScheduledEmailChecker';
 import { triggerScheduledEmail, sendHighlightByEmail, checkAndSendScheduledEmail, loadEmailSettings } from '@/utils/highlights';
 import { useToast } from '@/components/ui/use-toast';
-import { Mail, RefreshCw, Clock, AlertTriangle, Info } from 'lucide-react';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const EmailTester: React.FC = () => {
   const { toast } = useToast();
@@ -19,39 +17,34 @@ const EmailTester: React.FC = () => {
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [resendLimitationAlert, setResendLimitationAlert] = useState(false);
   const [scheduledInfo, setScheduledInfo] = useState<string | null>(null);
-  
+
   useEffect(() => {
     const loadEmailFromSettings = async () => {
       const settings = await loadEmailSettings();
       if (settings.email) {
         setEmail(settings.email);
       }
-      
-      // Check if scheduled emails would go to t@tpan.xyz
       if (settings.enabled && settings.email && settings.email !== 't@tpan.xyz') {
         setScheduledInfo("Note: With Resend's free tier, scheduled emails will be sent to t@tpan.xyz instead of the email in settings.");
       } else {
         setScheduledInfo(null);
       }
     };
-    
     loadEmailFromSettings();
   }, []);
-  
+
   const handleSendTest = async () => {
     if (!email) {
       toast({
         title: "Email required",
         description: "Please enter an email address to send the test.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
     setIsSending(true);
     try {
       const result = await triggerScheduledEmail(email);
-      
       if (result) {
         toast({
           title: "Test sent",
@@ -61,45 +54,42 @@ const EmailTester: React.FC = () => {
         toast({
           title: "Failed to send test",
           description: "There was an issue sending the scheduled test email.",
-          variant: "destructive"
+          variant: "destructive",
         });
       }
     } catch (error: any) {
       console.error('Error sending test:', error);
-      
       if (error.resendError) {
         setResendLimitationAlert(true);
         toast({
           title: "Resend Free Tier Limitation",
           description: "You can only send test emails to your Resend account email. Try using t@tpan.xyz instead.",
-          variant: "destructive"
+          variant: "destructive",
         });
       } else {
         toast({
           title: "Error",
           description: "An unexpected error occurred while sending the test.",
-          variant: "destructive"
+          variant: "destructive",
         });
       }
     } finally {
       setIsSending(false);
     }
   };
-  
+
   const handleSendRegular = async () => {
     if (!email) {
       toast({
         title: "Email required",
         description: "Please enter an email address to send the test.",
-        variant: "destructive"
+        variant: "destructive",
       });
       return;
     }
-    
     setIsSending(true);
     try {
       const result = await sendHighlightByEmail(email, 1);
-      
       if (result) {
         toast({
           title: "Test sent",
@@ -109,60 +99,50 @@ const EmailTester: React.FC = () => {
         toast({
           title: "Failed to send test",
           description: "There was an issue sending the test regular email.",
-          variant: "destructive"
+          variant: "destructive",
         });
       }
     } catch (error: any) {
       console.error('Error sending test:', error);
-      
       if (error.resendError) {
         setResendLimitationAlert(true);
         toast({
           title: "Resend Free Tier Limitation",
           description: "You can only send test emails to your Resend account email. Try using t@tpan.xyz instead.",
-          variant: "destructive"
+          variant: "destructive",
         });
       } else {
         toast({
           title: "Error",
           description: "An unexpected error occurred while sending the test.",
-          variant: "destructive"
+          variant: "destructive",
         });
       }
     } finally {
       setIsSending(false);
     }
   };
-  
+
   const handleCheckScheduledEmail = async () => {
     setIsCheckingSchedule(true);
     setDebugInfo(null);
-    
+
     try {
       const settings = await loadEmailSettings();
-      const nextSchedule = settings.enabled ? 
-        `${settings.frequency} at ${settings.deliveryTime}` : 
-        'Email delivery not enabled';
-      
       const shouldSend = await checkAndSendScheduledEmail();
-      
       setLastChecked(new Date());
-      
       setDebugInfo({
         settings,
         shouldSendNow: shouldSend,
         currentTime: new Date().toISOString(),
-        scheduledRecipient: shouldSend ? 't@tpan.xyz' : null, // Always use t@tpan.xyz for scheduled emails
+        scheduledRecipient: shouldSend ? 't@tpan.xyz' : null,
       });
-      
       toast({
         title: shouldSend ? "Email was sent!" : "No email needed at this time",
-        description: shouldSend ? 
-          "The system detected it's time to send an email and has done so to t@tpan.xyz." : 
+        description: shouldSend ?
+          "The system detected it's time to send an email and has done so to t@tpan.xyz." :
           "Based on your schedule, it's not time to send an email yet.",
       });
-      
-      // Update scheduled info
       if (settings.enabled && settings.email && settings.email !== 't@tpan.xyz') {
         setScheduledInfo("Note: With Resend's free tier, scheduled emails will be sent to t@tpan.xyz instead of the email in settings.");
       } else {
@@ -173,13 +153,13 @@ const EmailTester: React.FC = () => {
       toast({
         title: "Error",
         description: "Failed to check email schedule",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsCheckingSchedule(false);
     }
   };
-  
+
   return (
     <Card className="w-full mt-6">
       <CardHeader>
@@ -189,99 +169,21 @@ const EmailTester: React.FC = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {resendLimitationAlert && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Resend Free Tier Limitation</AlertTitle>
-            <AlertDescription>
-              With Resend's free tier, you can only send emails to the email address linked to your Resend account (appears to be t@tpan.xyz).
-              To send emails to other addresses like thomaskypan@gmail.com, you need to verify a domain in your Resend account.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {scheduledInfo && (
-          <Alert className="mb-4">
-            <Info className="h-4 w-4" />
-            <AlertTitle>About Scheduled Emails</AlertTitle>
-            <AlertDescription>
-              {scheduledInfo}
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        <div className="space-y-2">
-          <Input
-            placeholder="Enter your email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          {email === 't@tpan.xyz' && (
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <Info className="h-3 w-3 mr-1" /> This email should work with Resend
-            </Badge>
-          )}
-        </div>
-        
-        <div className="flex flex-wrap gap-2">
-          <Button 
-            variant="outline"
-            onClick={handleSendRegular}
-            disabled={isSending || !email}
-            className="gap-2 flex-1"
-            size="sm"
-          >
-            <Mail className="h-4 w-4" />
-            Test Regular Email
-          </Button>
-          
-          <Button 
-            onClick={handleSendTest}
-            disabled={isSending || !email}
-            className="gap-2 flex-1"
-            size="sm"
-          >
-            <Mail className="h-4 w-4" />
-            Test 3-Hour Scheduled Email
-          </Button>
-        </div>
-        
-        <div className="pt-4 border-t mt-4">
-          <Button
-            variant="secondary"
-            onClick={handleCheckScheduledEmail}
-            disabled={isCheckingSchedule}
-            className="w-full gap-2"
-            size="sm"
-          >
-            <Clock className="h-4 w-4" />
-            {isCheckingSchedule ? "Checking..." : "Check If Email Should Be Sent Now"}
-          </Button>
-          
-          {lastChecked && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Last checked: {lastChecked.toLocaleTimeString()}
-            </p>
-          )}
-        </div>
-        
-        {debugInfo && (
-          <Accordion type="single" collapsible className="mt-4">
-            <AccordionItem value="debug-info">
-              <AccordionTrigger className="text-sm">
-                <span className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                  Debug Information
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="bg-slate-50 p-3 rounded-md text-xs font-mono overflow-x-auto">
-                  <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        )}
+        <ResendLimitationAlert show={resendLimitationAlert} />
+        <ScheduledInfoAlert scheduledInfo={scheduledInfo} />
+        <EmailTestForm
+          email={email}
+          setEmail={setEmail}
+          onSendRegular={handleSendRegular}
+          onSendTest={handleSendTest}
+          isSending={isSending}
+        />
+        <ScheduledEmailChecker
+          onCheck={handleCheckScheduledEmail}
+          isChecking={isCheckingSchedule}
+          lastChecked={lastChecked}
+          debugInfo={debugInfo}
+        />
       </CardContent>
       <CardFooter className="flex flex-col justify-center border-t pt-4 gap-2">
         <p className="text-xs text-muted-foreground">
