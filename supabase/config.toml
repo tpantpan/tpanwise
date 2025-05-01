@@ -6,3 +6,4 @@ verify_jwt = false
 
 [functions.scheduled-highlight]
 verify_jwt = false
+schedule = "0 14 * * * America/Los_Angeles"

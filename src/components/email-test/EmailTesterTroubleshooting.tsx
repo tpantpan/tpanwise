@@ -22,6 +22,9 @@ const EmailTesterTroubleshooting: React.FC = () => (
       <li>
         All scheduled emails on the free tier will be sent to t@tpan.xyz regardless of email settings
       </li>
+      <li>
+        Scheduled emails are automatically sent daily at 2:00 PM Pacific Time
+      </li>
     </ul>
   </div>
 );
