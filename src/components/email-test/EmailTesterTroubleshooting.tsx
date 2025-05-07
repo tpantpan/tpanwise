@@ -30,6 +30,25 @@ const EmailTesterTroubleshooting: React.FC = () => (
         <code className="ml-1 px-1 bg-slate-200 rounded">supabase functions logs scheduled-highlight</code>
       </li>
     </ul>
+    
+    <p className="font-medium mt-3">Scheduled Email Troubleshooting:</p>
+    <ul className="list-disc pl-4 mt-1">
+      <li>
+        <strong>Verify deployment:</strong> Run <code className="px-1 bg-slate-200 rounded">supabase functions list</code> and confirm the CRON column appears for scheduled-highlight
+      </li>
+      <li>
+        <strong>Check for errors:</strong> The function might run but fail - check logs with <code className="px-1 bg-slate-200 rounded">supabase functions logs scheduled-highlight --since 2h</code>
+      </li>
+      <li>
+        <strong>Test manually:</strong> Invoke the function directly with <code className="px-1 bg-slate-200 rounded">supabase functions invoke scheduled-highlight</code>
+      </li>
+      <li>
+        <strong>Resend restrictions:</strong> Free tier will only deliver to your Resend account email (t@tpan.xyz) until you verify a domain
+      </li>
+      <li>
+        <strong>Quick test:</strong> Temporarily change schedule to <code className="px-1 bg-slate-200 rounded">* * * * *</code> (every minute) and redeploy to quickly verify the trigger works
+      </li>
+    </ul>
   </div>
 );
 

@@ -29,6 +29,10 @@ const corsHeaders = {
 const FREE_TIER_EMAIL = "t@tpan.xyz";
 
 const handler = async (req: Request): Promise<Response> => {
+  // Log invocation source - useful to distinguish cron vs manual invocation
+  const isCronInvoked = req.headers.get("user-agent")?.includes("Supabase-Cron");
+  console.log(`Function invoked${isCronInvoked ? " by scheduler" : " manually"}. Time: ${new Date().toISOString()}`);
+  
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -38,12 +42,21 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Scheduled highlight function triggered");
     
     // Get active email from request body
-    const requestBody = await req.json().catch(() => ({}));
-    let { activeEmail, currentDate, isTest = false } = requestBody;
+    let requestBody = {};
+    try {
+      requestBody = await req.json();
+      console.log("Request body successfully parsed:", requestBody);
+    } catch (e) {
+      console.log("No request body or invalid JSON. This is normal for cron invocations.");
+      // Provide default values for cron-triggered invocations
+      requestBody = { activeEmail: FREE_TIER_EMAIL, isTest: false };
+    }
+    
+    let { activeEmail, currentDate, isTest = false } = requestBody as any;
     
     if (!activeEmail) {
-      console.error("No active email provided in request body");
-      throw new Error('No active email provided');
+      console.log(`No active email provided, defaulting to ${FREE_TIER_EMAIL}`);
+      activeEmail = FREE_TIER_EMAIL;
     }
     
     // For scheduled non-test emails, override with FREE_TIER_EMAIL if not running a test
