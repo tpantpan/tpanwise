@@ -25,6 +25,10 @@ const EmailTesterTroubleshooting: React.FC = () => (
       <li>
         Scheduled emails are automatically sent daily at 2:00 PM Pacific Time
       </li>
+      <li>
+        If scheduled emails are not arriving, verify the function logs using Supabase CLI: 
+        <code className="ml-1 px-1 bg-slate-200 rounded">supabase functions logs scheduled-highlight</code>
+      </li>
     </ul>
   </div>
 );
